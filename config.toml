@@ -10,11 +10,11 @@ enableEmoji=true
 # enableGitInfo=true
 [params]
   # background = "black"
-#   backgroundImage = "/me/background.jpg"
+  backgroundImage = "/img/background.png"
   linkColor = "seagreen"
   author = "KrizsX"
   description = "个人博客"
-#   avatar = "/me/yy.jpg"
+  avatar = "/img/avator.jpeg"
   motto = "加一层可以解决所有问题"
 
   email = "cb.kris.bj@gmail.com"
@@ -25,9 +25,9 @@ enableEmoji=true
   favicon = "/favicon.ico"
 
   # options
-  showSummaryCoverInPost = true
+  showSummaryCoverInPost = false
 
   # dark mode
 #   darkLinkColor = "darkseagreen"
-#   darkNav = true
-#   dark404 = true
+  # darkNav = true
+  dark404 = true
