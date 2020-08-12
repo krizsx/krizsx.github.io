@@ -7,7 +7,7 @@ author: KrizsX
 categories: ["blog"]
 tags: ["test"]
 # showcase: true
-draft: true
+draft: false
 ---
 
 Cut out summary from your post content here.
