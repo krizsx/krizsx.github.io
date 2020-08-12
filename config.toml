@@ -1,0 +1,33 @@
+baseURL = "https://krizsx.github.io/"
+languageCode = "en-us"
+title = "KrisX Blog"
+# config
+theme = "dream"
+defaultContentLanguage = "en"
+# googleAnalytics = "UA-167402242-1"
+enableRobotsTXT=true
+enableEmoji=true
+# enableGitInfo=true
+[params]
+  # background = "black"
+#   backgroundImage = "/me/background.jpg"
+  linkColor = "seagreen"
+  author = "KrizsX"
+  description = "个人博客"
+#   avatar = "/me/yy.jpg"
+  motto = "加一层可以解决所有问题"
+
+  email = "cb.kris.bj@gmail.com"
+  github = "krizsx"
+
+  siteStartYear = 2020
+
+  favicon = "/favicon.ico"
+
+  # options
+  showSummaryCoverInPost = true
+
+  # dark mode
+#   darkLinkColor = "darkseagreen"
+#   darkNav = true
+#   dark404 = true
