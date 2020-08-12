@@ -1,0 +1,21 @@
+install:
+  - rm -rf public || exit 0
+  - mkdir ~/_bin
+  - wget https://github.com/gohugoio/hugo/releases/download/v0.74.3/hugo_0.74.3_Linux-64bit.tar.gz -O hugo.tgz
+  - tar xfv hugo.tgz -C ~/_bin
+  - rm hugo.tgz ~/_bin/*.md
+  - export PATH=$HOME/_bin:$PATH
+
+script:
+  - hugo version
+  - hugo
+  - ls
+
+deploy:
+  provider: pages
+  skip_cleanup: true
+  github_token: $GITHUB_TOKEN
+  local_dir: "public"
+  target_branch: master
+  on:
+    branch: dev
