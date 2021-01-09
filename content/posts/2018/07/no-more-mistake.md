@@ -3,7 +3,7 @@ title: 绝对不要再淋雨
 date: 2018-07-07T21:47:45+08:00
 lastmod: 2018-07-07T21:47:45+08:00
 cover: "/img/2018/07/rain.jpg"
-draft: false
+draft: true
 categories: ["personal"]
 tags: ["independent"]
 ---
