@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>music on KrisX Blog</title>
+    <link>https://krizsx.github.io/tags/music/</link>
+    <description>Recent content in music on KrisX Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sun, 08 Jul 2018 09:06:00 +0800</lastBuildDate>
+    
+	<atom:link href="https://krizsx.github.io/tags/music/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>hugo使用shortcode引入音乐</title>
+      <link>https://krizsx.github.io/posts/2018/07/song/</link>
+      <pubDate>Sun, 08 Jul 2018 09:06:00 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/posts/2018/07/song/</guid>
+      <description>&lt;h4&gt;wakeup-倪安东&lt;/h4&gt;
+&lt;audio controls autoplay loop preload=&#34;none&#34; src=&#34;https://krizsx.github.io/music/2018/07/wakeup.m4a&#34;&gt;
+  &lt;p&gt;Your browser does not support the &lt;code&gt;audio&lt;/code&gt; element.&lt;/p&gt;
+&lt;/audio&gt;
+
+&lt;p&gt;最近在找歌,然后就突然想到,hugo 中可不可以引入音乐播放器?于是去网上搜索了一下,发现并没有现成的&lt;/p&gt;
+&lt;p&gt;于是去看了看官网,发现了关于&lt;a href=&#34;https://gohugo.io/content-management/shortcodes/#readout&#34;&gt;shortcode&lt;/a&gt;的介绍,就想到了用这个来引入音乐&lt;/p&gt;</description>
+    </item>
+    
+  </channel>
+</rss>

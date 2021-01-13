@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>gin的平滑关闭 | KrisX Blog</title>
+
+    
+<link href="/favicon.ico" rel="shortcut icon" type="image/x-icon" />
+
+
+
+
+<meta name="author" content="KrizsX" />
+<meta name="description" content="Gin 是一个 go 语言的高性能 web 框架,之前用过很多次,但是平滑关闭一直没有办法做到,最近又重新看了一次 gin 的文档,突然发现已经有办法了,赶紧尝试一波
+" />
+
+
+
+<meta name="generator" content="Hugo 0.74.3" />
+
+<link rel="canonical" href="https://krizsx.github.io/posts/2018/07/gin-graceful/" />
+
+
+<meta property="og:title" content="gin的平滑关闭" />
+<meta property="og:description" content="Gin 是一个 go 语言的高性能 web 框架,之前用过很多次,但是平滑关闭一直没有办法做到,最近又重新看了一次 gin 的文档,突然发现已经有办法了,赶紧尝试一波" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://krizsx.github.io/posts/2018/07/gin-graceful/" />
+<meta property="article:published_time" content="2018-07-14T20:35:06+08:00" />
+<meta property="article:modified_time" content="2018-07-14T20:35:06+08:00" />
+
+
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="gin的平滑关闭"/>
+<meta name="twitter:description" content="Gin 是一个 go 语言的高性能 web 框架,之前用过很多次,但是平滑关闭一直没有办法做到,最近又重新看了一次 gin 的文档,突然发现已经有办法了,赶紧尝试一波"/>
+
+
+<link rel="stylesheet" href="/css/semantic.min.css" />
+<link rel="stylesheet" href="/css/OverlayScrollbars.min.css" />
+<link rel="stylesheet" href="/css/site.css" />
+
+
+<style>
+  a {
+    color: seagreen !important;
+  }
+</style>
+
+
+
+
+    
+<link rel="stylesheet" href="/css/github-markdown.css" />
+
+  </head>
+
+  
+  <body style="background-image: url(/img/background.png);">
+  
+    <div class="flip-container">
+      <div class="flipper">
+        <section class="front">
+          
+<nav class="ui secondary menu dream-menu">
+
+  <div class="item">
+    <i class="large link bullseye icon dream-flip-toggle" title="Flip it!"></i>
+  </div>
+  <div class="item">
+    <i class="large link home icon" title="Home" onclick="window.location.href = 'https:\/\/krizsx.github.io'"></i>
+  </div>
+  <div class="item">
+    <i class="large link icon theme-switch" onclick="themeSwitch()"></i>
+  </div>
+</nav>
+
+          
+<div class="ui centered relaxed grid dream-grid">
+  <div class="sixteen wide mobile sixteen wide tablet twelve wide computer column markdown-body dream-single">
+
+    <section class="ui top attached segment" id="dream-save-post-as-img">
+      <header style="margin-top: 0 !important;">
+        <h1 class="ui large header">
+          gin的平滑关闭
+          <div class="sub header">
+            @
+            
+              KrizsX
+            
+            · Saturday, Jul 14, 2018
+            · 3 minute read
+            · Update at Jul 14, 2018
+          </div>
+        </h1>
+      </header>
+
+      
+
+      <article style="margin-top: 2rem;"><p><a href="https://github.com/gin-gonic/gin">Gin</a> 是一个 go 语言的高性能 web 框架,之前用过很多次,但是平滑关闭一直没有办法做到,最近又重新看了一次 gin 的文档,突然发现已经有办法了,赶紧尝试一波</p>
+<h1 id="环境需求">环境需求</h1>
+<ul>
+<li>go 1.8 以上</li>
+</ul>
+<h1 id="demo">demo</h1>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">main</span>
+
+<span style="color:#f92672">import</span> (
+	<span style="color:#e6db74">&#34;context&#34;</span>
+	<span style="color:#e6db74">&#34;log&#34;</span>
+	<span style="color:#e6db74">&#34;net/http&#34;</span>
+	<span style="color:#e6db74">&#34;os&#34;</span>
+	<span style="color:#e6db74">&#34;os/signal&#34;</span>
+	<span style="color:#e6db74">&#34;time&#34;</span>
+
+	<span style="color:#e6db74">&#34;github.com/gin-gonic/gin&#34;</span>
+)
+
+<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
+	<span style="color:#a6e22e">router</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">gin</span>.<span style="color:#a6e22e">Default</span>()
+	<span style="color:#a6e22e">router</span>.<span style="color:#a6e22e">GET</span>(<span style="color:#e6db74">&#34;/&#34;</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">c</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">gin</span>.<span style="color:#a6e22e">Context</span>) {
+		<span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Sleep</span>(<span style="color:#ae81ff">5</span> <span style="color:#f92672">*</span> <span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Second</span>)
+		<span style="color:#a6e22e">c</span>.<span style="color:#a6e22e">String</span>(<span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">StatusOK</span>, <span style="color:#e6db74">&#34;Welcome Gin Server&#34;</span>)
+	})
+
+	<span style="color:#a6e22e">srv</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">Server</span>{
+		<span style="color:#a6e22e">Addr</span>:    <span style="color:#e6db74">&#34;:8080&#34;</span>,
+		<span style="color:#a6e22e">Handler</span>: <span style="color:#a6e22e">router</span>,
+	}
+
+	<span style="color:#66d9ef">go</span> <span style="color:#66d9ef">func</span>() {
+		<span style="color:#75715e">// service connections
+</span><span style="color:#75715e"></span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">ListenAndServe</span>(); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">ErrServerClosed</span> {
+			<span style="color:#a6e22e">log</span>.<span style="color:#a6e22e">Fatalf</span>(<span style="color:#e6db74">&#34;listen: %s&#34;</span>, <span style="color:#a6e22e">err</span>)
+		}
+	}()
+
+	<span style="color:#75715e">// Wait for interrupt signal to gracefully shutdown the server with
+</span><span style="color:#75715e"></span>	<span style="color:#75715e">// a timeout of 5 seconds.
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">quit</span> <span style="color:#f92672">:=</span> make(<span style="color:#66d9ef">chan</span> <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Signal</span>)
+	<span style="color:#a6e22e">signal</span>.<span style="color:#a6e22e">Notify</span>(<span style="color:#a6e22e">quit</span>, <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Interrupt</span>)
+	<span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">quit</span>
+	<span style="color:#a6e22e">log</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#e6db74">&#34;Shutdown Server ...&#34;</span>)
+
+	<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">cancel</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">WithTimeout</span>(<span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Background</span>(), <span style="color:#ae81ff">5</span><span style="color:#f92672">*</span><span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Second</span>)
+	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">cancel</span>()
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">Shutdown</span>(<span style="color:#a6e22e">ctx</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#a6e22e">log</span>.<span style="color:#a6e22e">Fatal</span>(<span style="color:#e6db74">&#34;Server Shutdown:&#34;</span>, <span style="color:#a6e22e">err</span>)
+	}
+	<span style="color:#a6e22e">log</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#e6db74">&#34;Server exiting&#34;</span>)
+}
+
+</code></pre></div><p>先启动,然后发一个请求,然后立即 ctrl+c,证实了,确实不会立即关闭,会等到请求处理完成</p>
+<p><img src="/img/2018/07/gin-grace.png" alt="gin-grace"></p>
+<h1 id="go-源码探究">Go 源码探究</h1>
+<p>与之前关闭的方式不一样的就是,监听了信号之后,调用了<code>http.Server</code>的<code>Shutdown</code>函数了,下面是在 go 中的源码部分</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// Shutdown gracefully shuts down the server without interrupting any
+</span><span style="color:#75715e">// active connections. Shutdown works by first closing all open
+</span><span style="color:#75715e">// listeners, then closing all idle connections, and then waiting
+</span><span style="color:#75715e">// indefinitely for connections to return to idle and then shut down.
+</span><span style="color:#75715e">// If the provided context expires before the shutdown is complete,
+</span><span style="color:#75715e">// Shutdown returns the context&#39;s error, otherwise it returns any
+</span><span style="color:#75715e">// error returned from closing the Server&#39;s underlying Listener(s).
+</span><span style="color:#75715e">//
+</span><span style="color:#75715e">// When Shutdown is called, Serve, ListenAndServe, and
+</span><span style="color:#75715e">// ListenAndServeTLS immediately return ErrServerClosed. Make sure the
+</span><span style="color:#75715e">// program doesn&#39;t exit and waits instead for Shutdown to return.
+</span><span style="color:#75715e">//
+</span><span style="color:#75715e">// Shutdown does not attempt to close nor wait for hijacked
+</span><span style="color:#75715e">// connections such as WebSockets. The caller of Shutdown should
+</span><span style="color:#75715e">// separately notify such long-lived connections of shutdown and wait
+</span><span style="color:#75715e">// for them to close, if desired. See RegisterOnShutdown for a way to
+</span><span style="color:#75715e">// register shutdown notification functions.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">srv</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Server</span>) <span style="color:#a6e22e">Shutdown</span>(<span style="color:#a6e22e">ctx</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Context</span>) <span style="color:#66d9ef">error</span> {
+	<span style="color:#a6e22e">atomic</span>.<span style="color:#a6e22e">AddInt32</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">inShutdown</span>, <span style="color:#ae81ff">1</span>)
+	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">atomic</span>.<span style="color:#a6e22e">AddInt32</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">inShutdown</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>)
+
+	<span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">mu</span>.<span style="color:#a6e22e">Lock</span>()
+	<span style="color:#a6e22e">lnerr</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">closeListenersLocked</span>()
+	<span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">closeDoneChanLocked</span>()
+	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">f</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">onShutdown</span> {
+		<span style="color:#66d9ef">go</span> <span style="color:#a6e22e">f</span>()
+	}
+	<span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">mu</span>.<span style="color:#a6e22e">Unlock</span>()
+
+	<span style="color:#a6e22e">ticker</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">NewTicker</span>(<span style="color:#a6e22e">shutdownPollInterval</span>)
+	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">ticker</span>.<span style="color:#a6e22e">Stop</span>()
+	<span style="color:#66d9ef">for</span> {
+		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">closeIdleConns</span>() {
+			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">lnerr</span>
+		}
+		<span style="color:#66d9ef">select</span> {
+		<span style="color:#66d9ef">case</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Done</span>():
+			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Err</span>()
+		<span style="color:#66d9ef">case</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">ticker</span>.<span style="color:#a6e22e">C</span>:
+		}
+	}
+}
+</code></pre></div><h2 id="注释翻译">注释翻译</h2>
+<blockquote>
+<p>Shutdown 函数在关闭时,不会关闭任何已激活的连接,首先会关闭所有打开的 listener,然后关掉所有的空闲连接,再之后一直等待其他的连接都变为空闲后关闭.如果在传入的 context 的时间内没有完成关闭,会返回一个 context 的错误,否则会返回关闭 listener 时的错误.</p>
+</blockquote>
+<hr>
+<blockquote>
+<p>当调用 Shutdown 之后,Serve, ListenAndServe,和 ListenAndServeTLS 函数会立即返回一个 ErrServerClosed,确保你的程序不要因为这个退出,而是等待 Shutdown 函数返回结果</p>
+</blockquote>
+<hr>
+<blockquote>
+<p>Shutdown 函数不会试图关闭或者等待被劫持的连接,比如说 websocket,调用者应该分别通知这种长寿命的连接,并等待他们关闭,如果需要的话,RegisterOnShutdown 函数可以注册一个 shutdown 通知</p>
+</blockquote>
+<p>从注释中基本已经看出来是怎么操作的了,然后仔细看一下代码</p>
+<p>函数的第一句,是让<code>srv.inShutdown</code>这个变量加 1 了,这个变量在源码中表示是否开始 shutdown,只要它的值不是 0 就表示已经开始 shutdown 过程了</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">    <span style="color:#a6e22e">atomic</span>.<span style="color:#a6e22e">AddInt32</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">inShutdown</span>, <span style="color:#ae81ff">1</span>)
+    <span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">atomic</span>.<span style="color:#a6e22e">AddInt32</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">inShutdown</span>, <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>)
+</code></pre></div><p>接下来的这一段代码就是在关闭 listener 了,并且会执行<code>svr.onShutdown</code>里面保存的函数,这个应该是类似于 java 的<code>Runtime</code>的<code>ShutdownHook</code>吧</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">	<span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">mu</span>.<span style="color:#a6e22e">Lock</span>()
+	<span style="color:#a6e22e">lnerr</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">closeListenersLocked</span>()
+	<span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">closeDoneChanLocked</span>()
+	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">f</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">onShutdown</span> {
+		<span style="color:#66d9ef">go</span> <span style="color:#a6e22e">f</span>()
+	}
+	<span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">mu</span>.<span style="color:#a6e22e">Unlock</span>()
+</code></pre></div><p>这个<code>svr.closeListenersLocked()</code>具体的内容是这样的</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">s</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Server</span>) <span style="color:#a6e22e">closeListenersLocked</span>() <span style="color:#66d9ef">error</span> {
+	<span style="color:#66d9ef">var</span> <span style="color:#a6e22e">err</span> <span style="color:#66d9ef">error</span>
+	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">ln</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">listeners</span> {
+		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">cerr</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">ln</span>.<span style="color:#a6e22e">Close</span>(); <span style="color:#a6e22e">cerr</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">==</span> <span style="color:#66d9ef">nil</span> {
+			<span style="color:#a6e22e">err</span> = <span style="color:#a6e22e">cerr</span>
+		}
+		delete(<span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">listeners</span>, <span style="color:#a6e22e">ln</span>)
+	}
+	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+}
+
+</code></pre></div><p>也确实是调用了<code>Close()</code>,并且从<code>s.listeners</code>这个 map 中删除了</p>
+<p>之后的代码是启动了一个定时器,这个定时器是轮询来关闭连接用的</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">    <span style="color:#a6e22e">ticker</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">NewTicker</span>(<span style="color:#a6e22e">shutdownPollInterval</span>)
+	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">ticker</span>.<span style="color:#a6e22e">Stop</span>()
+	<span style="color:#66d9ef">for</span> {
+		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">srv</span>.<span style="color:#a6e22e">closeIdleConns</span>() {
+			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">lnerr</span>
+		}
+		<span style="color:#66d9ef">select</span> {
+		<span style="color:#66d9ef">case</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Done</span>():
+			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Err</span>()
+		<span style="color:#66d9ef">case</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">ticker</span>.<span style="color:#a6e22e">C</span>:
+		}
+	}
+</code></pre></div><p>这个<code>shutdownPollInterval</code>是这么设置的</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// shutdownPollInterval is how often we poll for quiescence
+</span><span style="color:#75715e">// during Server.Shutdown. This is lower during tests, to
+</span><span style="color:#75715e">// speed up tests.
+</span><span style="color:#75715e">// Ideally we could find a solution that doesn&#39;t involve polling,
+</span><span style="color:#75715e">// but which also doesn&#39;t have a high runtime cost (and doesn&#39;t
+</span><span style="color:#75715e">// involve any contentious mutexes), but that is left as an
+</span><span style="color:#75715e">// exercise for the reader.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">shutdownPollInterval</span> = <span style="color:#ae81ff">500</span> <span style="color:#f92672">*</span> <span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Millisecond</span>
+</code></pre></div><p>再具体看一下 for 循环中是如何关闭连接的,先是将<code>quiescent</code>设置为 true 表示空闲,然后循环所有激活的连接,并且通过<code>ConnState</code>来判断连接状态,如果没有获得结果或者结果不是<code>StateIdle</code>,那么就将<code>quiescent</code>设置为 false,表示不关闭该连接,如果连接确实是空闲的,就会调用<code>Close()</code>函数,并且从<code>s.activeConn</code>列表中删除该连接,最终的返回值如果是 false,就表示还有连接不是空闲的,还需要继续等待,如果是 true 就表示所有的连接都已经空闲并且删除</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// closeIdleConns closes all idle connections and reports whether the
+</span><span style="color:#75715e">// server is quiescent.
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">s</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Server</span>) <span style="color:#a6e22e">closeIdleConns</span>() <span style="color:#66d9ef">bool</span> {
+	<span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">mu</span>.<span style="color:#a6e22e">Lock</span>()
+	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">mu</span>.<span style="color:#a6e22e">Unlock</span>()
+	<span style="color:#a6e22e">quiescent</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">true</span>
+	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">c</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">activeConn</span> {
+		<span style="color:#a6e22e">st</span>, <span style="color:#a6e22e">ok</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">c</span>.<span style="color:#a6e22e">curState</span>.<span style="color:#a6e22e">Load</span>().(<span style="color:#a6e22e">ConnState</span>)
+		<span style="color:#66d9ef">if</span> !<span style="color:#a6e22e">ok</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">st</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">StateIdle</span> {
+			<span style="color:#a6e22e">quiescent</span> = <span style="color:#66d9ef">false</span>
+			<span style="color:#66d9ef">continue</span>
+		}
+		<span style="color:#a6e22e">c</span>.<span style="color:#a6e22e">rwc</span>.<span style="color:#a6e22e">Close</span>()
+		delete(<span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">activeConn</span>, <span style="color:#a6e22e">c</span>)
+	}
+	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">quiescent</span>
+}
+</code></pre></div><p>确实是非常容易理解的一段代码,不得不说这是 go 语言的特色之一了,看起来很舒服,看完之后对于平滑关闭的理解更深刻</p></article>
+    </section>
+
+    <footer class="ui attached segment dream-tags">
+      
+        
+          <a class="ui label" href="/tags/go" title="go">go</a>
+        
+          <a class="ui label" href="/tags/web" title="web">web</a>
+        
+      
+      <div
+        class="ui label"
+        style="float: right; cursor: pointer;"
+        onclick="savePostAsImg()">
+        <i class="save icon"></i>Save as image
+      </div>
+    </footer>
+
+    
+
+    
+    
+    
+
+  </div>
+  <div class="sixteen wide mobile sixteen wide tablet four wide computer column">
+    <article class="dream-header">
+  <section class="ui top attached center aligned segment">
+    <div class="ui small circular image">
+      
+        <img src="/img/avator.jpeg">
+      
+    </div>
+
+    
+    <div class="ui medium header">KrizsX&#39;s blog<div class="sub header" style="margin-top: 0.5rem;">加一层可以解决所有问题</div>
+    </div>
+    
+
+    <div class="ui horizontal list">
+      
+      <a class="item" href="/posts">
+        <i class="archive icon" title="Archives"></i>
+      </a>
+      
+      <a class="item" href="/tags">
+        <i class="tags icon" title="All Tags"></i>
+      </a>
+      <a class="item" href="/categories">
+        <i class="th list icon" title="All Categories"></i>
+      </a>
+    </div>
+  </section>
+
+  
+  <section class="ui attached center aligned segment dream-tags">
+    
+      <a class="ui label" href="/tags/consul" title="consul">consul</a>
+    
+      <a class="ui label" href="/tags/go" title="go">go</a>
+    
+      <a class="ui label" href="/tags/music" title="music">music</a>
+    
+      <a class="ui label" href="/tags/rpc" title="rpc">rpc</a>
+    
+      <a class="ui label" href="/tags/service-mesh" title="service-mesh">service-mesh</a>
+    
+      <a class="ui label" href="/tags/test" title="test">test</a>
+    
+      <a class="ui label" href="/tags/web" title="web">web</a>
+    
+  </section>
+  
+
+  
+  <section class="ui attached segment dream-categories">
+    <div class="ui accordion">
+      
+      
+      
+      
+      
+
+      
+        
+
+        
+          <div class="title">
+            <i class="dropdown icon"></i>
+            <a href="/categories/blog" class="item">blog</a>
+          </div>
+          <div class="content">
+            <div class="ui list">
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2019/02/service-mesh/" class="item">Service Mesh</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/09/golang-test-2/" class="item">Go语言测试(二)</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/09/golang-test-1/" class="item">Go语言测试(一)</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/07/gin-graceful/" class="item">gin的平滑关闭</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/07/song/" class="item">hugo使用shortcode引入音乐</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/04/consul-watch/" class="item">Golang中使用consul watch机制</a>
+                </div>
+              </div>
+            
+            </div>
+          </div>
+        
+      
+
+      
+    </div>
+  </section>
+  
+
+  <section class="ui attached segment header-socials">
+    <nav class="ui secondary menu dream-menu dream-socials">
+  
+  
+    <div class="item">
+      <a href="mailto:cb.kris.bj@gmail.com">
+        <i class=" mail icon" title="Email"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    <div class="item">
+      <a href="https://github.com/krizsx" target="_blank">
+        <i class=" github icon" title="GitHub"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+</nav>
+
+  </section>
+
+  <section class="ui bottom attached center aligned segment">
+    
+      <p>© 2020 - 2021 KrisX Blog</p>
+    
+
+    <p>Powered by <a href="https://gohugo.io/" target="_blank">Hugo</a> with theme <a href="https://github.com/g1eny0ung/hugo-theme-dream" target="_blank">Dream</a>.</p>
+
+    
+  </section>
+</article>
+
+  </div>
+</div>
+
+        </section>
+        <section class="back">
+          
+<nav class="ui secondary menu dream-menu">
+
+  <div class="item">
+    <i class="large link bullseye icon dream-flip-toggle" title="Flip it!"></i>
+  </div>
+  <div class="item">
+    <i class="large link home icon" title="Home" onclick="window.location.href = 'https:\/\/krizsx.github.io'"></i>
+  </div>
+  <div class="item">
+    <i class="large link icon theme-switch" onclick="themeSwitch()"></i>
+  </div>
+</nav>
+
+          <div class="ui centered relaxed grid dream-grid dream-back">
+  
+  
+  
+    <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+      <article>
+        <div class="ui top attached segment">
+          <h3 class="ui header">个人简介</h3>
+        </div>
+        <div class="ui attached segment markdown-body">
+          <p>Dream Boy</p>
+
+        </div>
+      </article>
+    </section>
+  
+
+  <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+    <article>
+      <div class="ui top attached segment">
+        <h3 class="ui header">Social Links</h3>
+      </div>
+      <div class="ui attached segment">
+        <nav class="ui secondary menu dream-menu dream-socials">
+  
+  
+    <div class="item">
+      <a href="mailto:cb.kris.bj@gmail.com">
+        <i class="large mail icon" title="Email"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    <div class="item">
+      <a href="https://github.com/krizsx" target="_blank">
+        <i class="large github icon" title="GitHub"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+</nav>
+
+      </div>
+    </article>
+  </section>
+
+  <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+    
+  </section>
+
+  
+  
+</div>
+
+        </section>
+      </div>
+    </div>
+
+    <script src="/js/jquery.min.js"></script>
+<script src="/js/semantic.min.js"></script>
+<script src="/js/jquery.overlayScrollbars.min.js"></script>
+<script src="/js/header.js"></script>
+<script src="/js/main.js"></script>
+<script src="/js/theme.js"></script>
+
+    
+<script src="/js/html2canvas.min.js"></script>
+<script src="/js/post.js"></script>
+
+
+    
+  </body>
+</html>

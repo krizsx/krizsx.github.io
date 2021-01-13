@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Go语言测试(一) | KrisX Blog</title>
+
+    
+<link href="/favicon.ico" rel="shortcut icon" type="image/x-icon" />
+
+
+
+
+<meta name="author" content="KrizsX" />
+<meta name="description" content="如何编写简单测试?
+" />
+
+
+
+<meta name="generator" content="Hugo 0.74.3" />
+
+<link rel="canonical" href="https://krizsx.github.io/posts/2018/09/golang-test-1/" />
+
+
+<meta property="og:title" content="Go语言测试(一)" />
+<meta property="og:description" content="如何编写简单测试" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://krizsx.github.io/posts/2018/09/golang-test-1/" />
+<meta property="article:published_time" content="2018-09-30T16:57:12+08:00" />
+<meta property="article:modified_time" content="2018-09-30T16:57:12+08:00" />
+
+
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Go语言测试(一)"/>
+<meta name="twitter:description" content="如何编写简单测试"/>
+
+
+<link rel="stylesheet" href="/css/semantic.min.css" />
+<link rel="stylesheet" href="/css/OverlayScrollbars.min.css" />
+<link rel="stylesheet" href="/css/site.css" />
+
+
+<style>
+  a {
+    color: seagreen !important;
+  }
+</style>
+
+
+
+
+    
+<link rel="stylesheet" href="/css/github-markdown.css" />
+
+  </head>
+
+  
+  <body style="background-image: url(/img/background.png);">
+  
+    <div class="flip-container">
+      <div class="flipper">
+        <section class="front">
+          
+<nav class="ui secondary menu dream-menu">
+
+  <div class="item">
+    <i class="large link bullseye icon dream-flip-toggle" title="Flip it!"></i>
+  </div>
+  <div class="item">
+    <i class="large link home icon" title="Home" onclick="window.location.href = 'https:\/\/krizsx.github.io'"></i>
+  </div>
+  <div class="item">
+    <i class="large link icon theme-switch" onclick="themeSwitch()"></i>
+  </div>
+</nav>
+
+          
+<div class="ui centered relaxed grid dream-grid">
+  <div class="sixteen wide mobile sixteen wide tablet twelve wide computer column markdown-body dream-single">
+
+    <section class="ui top attached segment" id="dream-save-post-as-img">
+      <header style="margin-top: 0 !important;">
+        <h1 class="ui large header">
+          Go语言测试(一)
+          <div class="sub header">
+            @
+            
+              KrizsX
+            
+            · Sunday, Sep 30, 2018
+            · 5 minute read
+            · Update at Sep 30, 2018
+          </div>
+        </h1>
+      </header>
+
+      
+
+      <article style="margin-top: 2rem;"><p>如何编写简单测试?</p>
+<h1 id="go-语言测试">Go 语言测试</h1>
+<h2 id="自带测试介绍">自带测试介绍</h2>
+<p>Go 语言自己有一个轻量级的测试框架,由<code>go test</code>命令以及<code>testing</code>包组成</p>
+<p>通过创建以<code>_test.go</code>为结尾的文件来编写对应文件的测试用例,该文件中应该包含名字为<code>TestXXX</code>,并且参数为<code>(t *testing)</code>的函数,那么执行<code>go test</code>命令的时候就会执行这些函数,如果在测试函数中调用了<code>t.Error</code>或者<code>t.Fail</code>,则认为测试用例失败</p>
+<p>我个人认为,Go 语言的测试可以大致分为内部测试和外部测试两类:</p>
+<ul>
+<li>外部测试:指的是测试代码和源代码在不同的包,名名规范应该是 <code>_test.go</code></li>
+<li>内部测试:指的是测试代码和源代码在是同一个包,命名规范应该是 <code>_internal_test.go</code></li>
+</ul>
+<p>我觉得大部分的测试应该是属于外部测试,就是只需要测试这个包大写的函数即可,如果有测试 private 函数的必要的话,可以再创建一个文件来写内部测试</p>
+<p>下面举个小栗子:</p>
+<p>写一个进行加法运算的函数</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// Package integers 整数计算
+</span><span style="color:#75715e"></span><span style="color:#f92672">package</span> <span style="color:#a6e22e">integers</span>
+
+<span style="color:#75715e">// Sum 求和
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">Sum</span>(<span style="color:#a6e22e">x</span>, <span style="color:#a6e22e">y</span> <span style="color:#66d9ef">int</span>) <span style="color:#66d9ef">int</span> {
+	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">x</span> <span style="color:#f92672">+</span> <span style="color:#a6e22e">y</span>
+}
+
+</code></pre></div><h3 id="单元测试unit-test">单元测试(Unit Test)</h3>
+<p>那么就可以编写一个下面这样的测试用例</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">integers_test</span>
+
+<span style="color:#f92672">import</span> (
+	<span style="color:#e6db74">&#34;demo/integers&#34;</span>
+	<span style="color:#e6db74">&#34;testing&#34;</span>
+)
+
+<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestSum</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+	<span style="color:#a6e22e">actual</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">integers</span>.<span style="color:#a6e22e">Sum</span>(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">2</span>)
+	<span style="color:#a6e22e">expected</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">4</span>
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">actual</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">expected</span> {
+		<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;expected &#39;%d&#39; but got &#39;%d&#39;&#34;</span>, <span style="color:#a6e22e">expected</span>, <span style="color:#a6e22e">actual</span>)
+	}
+}
+
+</code></pre></div><p>接下来可以执行<code>go test -v</code>执行测试用例,看到这样的输出就表示测试通过</p>
+<p><img src="/img/2018/09/integers_test.png" alt="sum test"></p>
+<p>Go 语言测试中还支持写一个<code>Example</code>来说明函数的作用,并且会被写到<code>godoc</code>中方便查看,就以上面这个函数为例子</p>
+<p><code>Example</code>的语法是,函数名以<code>Example</code>开头,不需要参数,最后注释中有一个<code>Output:</code>来表示预期输出</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">ExampleSum</span>() {
+	<span style="color:#a6e22e">actual</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">integers</span>.<span style="color:#a6e22e">Sum</span>(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>)
+	<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#a6e22e">actual</span>)
+	<span style="color:#75715e">// Output: 3
+</span><span style="color:#75715e"></span>}
+</code></pre></div><p>这样就可以了,之后再执行一次<code>go test -v</code></p>
+<p><img src="/img/2018/09/integers_example.png" alt="sum example"></p>
+<p>再之后,可以通过</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">godoc -http<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;:6060&#34;</span>
+</code></pre></div><blockquote>
+<p>godoc 命令可以扫描所有 GOPATH 以及 GOROOT 中的包,并且生成这样一个文档</p>
+</blockquote>
+<p>这个命令来启动文档,之后呢访问<a href="http://localhost:6060/pkg/demo/integers/">http://localhost:6060/pkg/demo/integers/</a></p>
+<p>会看到这样一个页面</p>
+<p><img src="/img/2018/09/integers_doc.png" alt="integers doc"></p>
+<h3 id="压力测试benchmark-test">压力测试(Benchmark Test)</h3>
+<p>还是以上面的 Sum 函数来编写一个压力测试,与普通的测试用例很像,只是函数名和参数需要替换一下</p>
+<p>举个栗子:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">BenchmarkSum</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">B</span>) {
+	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">i</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">0</span>; <span style="color:#a6e22e">i</span> &lt; <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">N</span>; <span style="color:#a6e22e">i</span><span style="color:#f92672">++</span> {
+		<span style="color:#a6e22e">integers</span>.<span style="color:#a6e22e">Sum</span>(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">1</span>)
+	}
+}
+</code></pre></div><p>压力测试函数的前缀要变成<code>Benchmark</code>,并且参数变成<code>b *testing.B</code>,之后可以通过<code>b.N</code>来决定执行次数,至于具体会执行多少次,这个是<code>testing</code>包来决定,它会找到最合适的值,那接下来就可以使用<code>go test -v -bench=.</code>来执行压力测试</p>
+<p><img src="/img/2018/09/integers_benchmark.png" alt="integers benchmark"></p>
+<p>这里显示最后的结果就是,执行一次<code>Sum</code>函数,需要 0.29 纳秒,一共执行了 2000000000 次</p>
+<h3 id="子测试sub-test">子测试(Sub Test)</h3>
+<p>在测试用例中,可以通过调用<code>t.Run</code>来执行一次子测试,有时候对于一个事情,会有不同的场景,那么就可以利用子测试来进行描述,并且可以复用代码</p>
+<p>继续以上面的<code>Sum</code>函数来举栗子</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestSumMulti</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+
+	<span style="color:#a6e22e">assert</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>, <span style="color:#a6e22e">actual</span>, <span style="color:#a6e22e">expected</span> <span style="color:#66d9ef">int</span>) {
+		<span style="color:#75715e">// 这里调用Helper函数表示当前函数并不是一个真正的测试用例
+</span><span style="color:#75715e"></span>		<span style="color:#75715e">// 在输出错误行号时,会将调用该函数的函数的位置打印出,而不是打印在Helper函数中的行号
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Helper</span>()
+		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">actual</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">expected</span> {
+			<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;expected &#39;%d&#39; but got &#39;%d&#39;&#34;</span>, <span style="color:#a6e22e">expected</span>, <span style="color:#a6e22e">actual</span>)
+		}
+	}
+
+	<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Run</span>(<span style="color:#e6db74">&#34;2+2&#34;</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+		<span style="color:#a6e22e">actual</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">integers</span>.<span style="color:#a6e22e">Sum</span>(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">2</span>)
+		<span style="color:#a6e22e">expected</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">5</span> <span style="color:#75715e">// 这里故意失败一下
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">assert</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">actual</span>, <span style="color:#a6e22e">expected</span>)
+	})
+	<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Run</span>(<span style="color:#e6db74">&#34;3+3&#34;</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+		<span style="color:#a6e22e">actual</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">integers</span>.<span style="color:#a6e22e">Sum</span>(<span style="color:#ae81ff">3</span>, <span style="color:#ae81ff">3</span>)
+		<span style="color:#a6e22e">expected</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">6</span>
+		<span style="color:#a6e22e">assert</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">actual</span>, <span style="color:#a6e22e">expected</span>)
+	})
+}
+</code></pre></div><p>然后运行<code>go test -v</code>可以看到</p>
+<p><img src="/img/2018/09/integers_sub.png" alt="sub test"></p>
+<h3 id="表格驱动-table-drivenhttpsgithubcomgolanggowikitabledriventests">表格驱动 <a href="https://github.com/golang/go/wiki/TableDrivenTests">Table-Driven</a></h3>
+<p>表格驱动是 Go 语言非常推荐的一种测试方式,这种方式可以很清晰的看到输入与输出,并且 Go 语言的 struct 很适合编写表格驱动的测试用例,此外,当发现了错误的时候,也可以很轻松的修改测试用例</p>
+<p>继续以上面的<code>Sum</code>函数举栗子:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestSumTableDriven</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+	<span style="color:#75715e">// 定义一个struct,用来表示参数以及期望输出
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">tests</span> <span style="color:#f92672">:=</span> []<span style="color:#66d9ef">struct</span> {
+		<span style="color:#a6e22e">name</span>     <span style="color:#66d9ef">string</span>
+		<span style="color:#a6e22e">x</span>        <span style="color:#66d9ef">int</span>
+		<span style="color:#a6e22e">y</span>        <span style="color:#66d9ef">int</span>
+		<span style="color:#a6e22e">expected</span> <span style="color:#66d9ef">int</span>
+	}{
+		{<span style="color:#e6db74">&#34;1+1&#34;</span>, <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>}, <span style="color:#75715e">// 表格中的每一条,包含输入的参数以及期望的输出
+</span><span style="color:#75715e"></span>		{<span style="color:#e6db74">&#34;2+3&#34;</span>, <span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">3</span>, <span style="color:#ae81ff">5</span>},
+		{<span style="color:#e6db74">&#34;4+5&#34;</span>, <span style="color:#ae81ff">4</span>, <span style="color:#ae81ff">5</span>, <span style="color:#ae81ff">9</span>},
+	}
+	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">test</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">tests</span> {
+		<span style="color:#75715e">// 利用子测试
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Run</span>(<span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">name</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+			<span style="color:#a6e22e">actual</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">integers</span>.<span style="color:#a6e22e">Sum</span>(<span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">x</span>, <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">y</span>)
+			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">actual</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">expected</span> {
+				<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;expected &#39;%d&#39; but got &#39;%d&#39;&#34;</span>, <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">expected</span>, <span style="color:#a6e22e">actual</span>)
+			}
+		})
+
+	}
+}
+</code></pre></div><p>这样写的好处就很明显了,当你需要添加删除或者修改测试用例的参数,都可以直接修改表格中的数据,而不需要修改代码,而且使测试用例的代码非常地简介明了</p>
+<h2 id="testify">Testify</h2>
+<p>上面的写法都是 Go 语言自身提供的写法,但是在编写测试的时候就会发现,它有很多不足,所以我安利一个第三方的测试框架,叫做<a href="https://github.com/stretchr/testify">Testify</a></p>
+<p>我自己常用的是下面三个包</p>
+<ul>
+<li>assert 用来判断结果是否符合期望,如果不符合会标记测试用例为失败,但是会继续执行</li>
+<li>require 和 assert 功能一样,但是如果不符合的话会立即终止测试程序</li>
+<li>mock 用来模拟一个假的实现对象</li>
+</ul>
+<h3 id="重构">重构</h3>
+<p>下面就用这个包来重构一下刚才的代码</p>
+<p>最开始的<code>TestSum</code>可以写成这样</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">
+<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestSum</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+	<span style="color:#a6e22e">actual</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">integers</span>.<span style="color:#a6e22e">Sum</span>(<span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">2</span>)
+    <span style="color:#a6e22e">expected</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">4</span>
+    <span style="color:#75715e">// Equal 函数可以判断是否相等,如果不相等,就会标记为失败
+</span><span style="color:#75715e"></span>    <span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Equal</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">expected</span>, <span style="color:#a6e22e">actual</span>)
+    <span style="color:#75715e">// 替换成require就是这样,函数和参数完全一致
+</span><span style="color:#75715e"></span>    <span style="color:#75715e">// require.Equal(t, expected, actual)
+</span><span style="color:#75715e"></span>}
+
+</code></pre></div><p><code>TableDriven</code>可以写成这样</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestSumTableDriven</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+	<span style="color:#75715e">// 定义一个struct,用来表示参数以及期望输出
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">tests</span> <span style="color:#f92672">:=</span> []<span style="color:#66d9ef">struct</span> {
+		<span style="color:#a6e22e">name</span>     <span style="color:#66d9ef">string</span>
+		<span style="color:#a6e22e">x</span>        <span style="color:#66d9ef">int</span>
+		<span style="color:#a6e22e">y</span>        <span style="color:#66d9ef">int</span>
+		<span style="color:#a6e22e">expected</span> <span style="color:#66d9ef">int</span>
+	}{
+		{<span style="color:#e6db74">&#34;1+1&#34;</span>, <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>},
+		{<span style="color:#e6db74">&#34;2+3&#34;</span>, <span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">3</span>, <span style="color:#ae81ff">5</span>},
+		{<span style="color:#e6db74">&#34;4+5&#34;</span>, <span style="color:#ae81ff">4</span>, <span style="color:#ae81ff">5</span>, <span style="color:#ae81ff">9</span>},
+	}
+	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">test</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">tests</span> {
+		<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Run</span>(<span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">name</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+			<span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Equal</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">expected</span>, <span style="color:#a6e22e">integers</span>.<span style="color:#a6e22e">Sum</span>(<span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">x</span>, <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">y</span>))
+		})
+
+	}
+}
+
+</code></pre></div><p>代码简洁了很多</p>
+<h3 id="mock-测试">Mock 测试</h3>
+<p>mock 测试就是模拟一个对象来实现功能,为什么需要这个对象,是因为有时候不可以直接调用真正的实现,所以需要一个假的对象来代替,testify 的 mock 包就可以做到,举个栗子:</p>
+<p>假设现在有一段调用 redis 的代码</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">mock</span>
+
+<span style="color:#f92672">import</span> <span style="color:#e6db74">&#34;github.com/mediocregopher/radix.v2/redis&#34;</span>
+
+<span style="color:#75715e">// Handler 调用redis
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">Handler</span> <span style="color:#66d9ef">struct</span> {
+	<span style="color:#a6e22e">DB</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">redis</span>.<span style="color:#a6e22e">Client</span>
+}
+
+<span style="color:#75715e">// Ping 给redis发送一个命令
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">h</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Handler</span>) <span style="color:#a6e22e">Ping</span>() (<span style="color:#66d9ef">string</span>, <span style="color:#66d9ef">error</span>) {
+	<span style="color:#75715e">// 这里是真的redis客户端
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">res</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">h</span>.<span style="color:#a6e22e">DB</span>.<span style="color:#a6e22e">Cmd</span>(<span style="color:#e6db74">&#34;INCR&#34;</span>, <span style="color:#e6db74">&#34;ping&#34;</span>)
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">Err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;&#34;</span>, <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">Err</span>
+	}
+	<span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;pong&#34;</span>, <span style="color:#66d9ef">nil</span>
+}
+
+</code></pre></div><p>按照这种写法,如果直接对 Handler 的 Ping 函数进行单元测试,那么肯定就需要创建一个 redis 的 client 去连接 redis 了,这明显是不符合要求的,所以需要对代码进行一下改造,将调用抽象为接口</p>
+<p>因为调用 redisClient 的<code>Cmd</code>函数,所以定义这么一个接口</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">mock</span>
+
+<span style="color:#f92672">import</span> <span style="color:#e6db74">&#34;github.com/mediocregopher/radix.v2/redis&#34;</span>
+
+<span style="color:#75715e">// RedisCaller 抽象出一个接口,这个接口是我们需要调用的,并且已经被真正的redis client实现,
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">RedisCaller</span> <span style="color:#66d9ef">interface</span> {
+	<span style="color:#a6e22e">Cmd</span>(<span style="color:#a6e22e">cmd</span> <span style="color:#66d9ef">string</span>, <span style="color:#a6e22e">args</span> <span style="color:#f92672">...</span><span style="color:#66d9ef">interface</span>{}) <span style="color:#f92672">*</span><span style="color:#a6e22e">redis</span>.<span style="color:#a6e22e">Resp</span>
+}
+
+<span style="color:#75715e">// Handler 调用redis
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">Handler</span> <span style="color:#66d9ef">struct</span> {
+	<span style="color:#a6e22e">DB</span> <span style="color:#a6e22e">RedisCaller</span>
+}
+
+<span style="color:#75715e">// Ping 给redis发送一个命令
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">h</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Handler</span>) <span style="color:#a6e22e">Ping</span>() (<span style="color:#66d9ef">string</span>, <span style="color:#66d9ef">error</span>) {
+	<span style="color:#75715e">// 这里是真的redis客户端
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">res</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">h</span>.<span style="color:#a6e22e">DB</span>.<span style="color:#a6e22e">Cmd</span>(<span style="color:#e6db74">&#34;INCR&#34;</span>, <span style="color:#e6db74">&#34;ping&#34;</span>)
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">Err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;&#34;</span>, <span style="color:#a6e22e">res</span>.<span style="color:#a6e22e">Err</span>
+	}
+	<span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;pong&#34;</span>, <span style="color:#66d9ef">nil</span>
+}
+
+
+</code></pre></div><p>之后通过<code>mock</code>包,编写一个 mock 对象来实现对应的接口</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">mock_test</span>
+
+<span style="color:#f92672">import</span> (
+	<span style="color:#a6e22e">my</span> <span style="color:#e6db74">&#34;demo/mock&#34;</span>
+	<span style="color:#e6db74">&#34;errors&#34;</span>
+	<span style="color:#e6db74">&#34;testing&#34;</span>
+
+	<span style="color:#e6db74">&#34;github.com/stretchr/testify/assert&#34;</span>
+
+	<span style="color:#e6db74">&#34;github.com/mediocregopher/radix.v2/redis&#34;</span>
+	<span style="color:#e6db74">&#34;github.com/stretchr/testify/mock&#34;</span>
+)
+
+<span style="color:#66d9ef">type</span> <span style="color:#a6e22e">mockRedisCaller</span> <span style="color:#66d9ef">struct</span> {
+	<span style="color:#a6e22e">mock</span>.<span style="color:#a6e22e">Mock</span> <span style="color:#75715e">// 只需要组合testify的mock包
+</span><span style="color:#75715e"></span>}
+
+<span style="color:#75715e">// Cmd 实现接口
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">m</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">mockRedisCaller</span>) <span style="color:#a6e22e">Cmd</span>(<span style="color:#a6e22e">cmd</span> <span style="color:#66d9ef">string</span>, <span style="color:#a6e22e">args</span> <span style="color:#f92672">...</span><span style="color:#66d9ef">interface</span>{}) <span style="color:#f92672">*</span><span style="color:#a6e22e">redis</span>.<span style="color:#a6e22e">Resp</span> {
+	<span style="color:#66d9ef">var</span> <span style="color:#a6e22e">_ca</span> []<span style="color:#66d9ef">interface</span>{}
+	<span style="color:#a6e22e">_ca</span> = append(<span style="color:#a6e22e">_ca</span>, <span style="color:#a6e22e">cmd</span>)
+	<span style="color:#a6e22e">_ca</span> = append(<span style="color:#a6e22e">_ca</span>, <span style="color:#a6e22e">args</span><span style="color:#f92672">...</span>)
+	<span style="color:#75715e">// 这里是假装接收所有参数
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">_args</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">Called</span>(<span style="color:#a6e22e">_ca</span><span style="color:#f92672">...</span>)
+	<span style="color:#75715e">// 这里是假装返回一个结果
+</span><span style="color:#75715e"></span>	<span style="color:#75715e">// Get 函数的参数指的是传入结果的index
+</span><span style="color:#75715e"></span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">_args</span>.<span style="color:#a6e22e">Get</span>(<span style="color:#ae81ff">0</span>).(<span style="color:#f92672">*</span><span style="color:#a6e22e">redis</span>.<span style="color:#a6e22e">Resp</span>)
+}
+
+<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestPing</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+	<span style="color:#a6e22e">sampleErr</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">errors</span>.<span style="color:#a6e22e">New</span>(<span style="color:#e6db74">&#34;错误&#34;</span>)
+	<span style="color:#a6e22e">tests</span> <span style="color:#f92672">:=</span> []<span style="color:#66d9ef">struct</span> {
+		<span style="color:#a6e22e">name</span>     <span style="color:#66d9ef">string</span>
+		<span style="color:#a6e22e">response</span> <span style="color:#66d9ef">string</span>
+		<span style="color:#a6e22e">err</span>      <span style="color:#66d9ef">error</span>
+	}{
+		{
+			<span style="color:#a6e22e">name</span>:     <span style="color:#e6db74">&#34;success&#34;</span>,
+			<span style="color:#a6e22e">response</span>: <span style="color:#e6db74">&#34;pong&#34;</span>,
+			<span style="color:#a6e22e">err</span>:      <span style="color:#66d9ef">nil</span>,
+		},
+		{
+			<span style="color:#a6e22e">name</span>:     <span style="color:#e6db74">&#34;fail&#34;</span>,
+			<span style="color:#a6e22e">response</span>: <span style="color:#e6db74">&#34;&#34;</span>,
+			<span style="color:#a6e22e">err</span>:      <span style="color:#a6e22e">sampleErr</span>,
+		},
+	}
+	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">test</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">tests</span> {
+		<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Logf</span>(<span style="color:#e6db74">&#34;Running test case: %s&#34;</span>, <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">name</span>)
+		<span style="color:#a6e22e">caller</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">mockRedisCaller</span>{}
+		<span style="color:#75715e">// 这个On表示的就是当调用 Cmd这个函数,并且参数是 INCR ping:count的时候
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">caller</span>.<span style="color:#a6e22e">On</span>(<span style="color:#e6db74">&#34;Cmd&#34;</span>, <span style="color:#e6db74">&#34;INCR&#34;</span>, <span style="color:#e6db74">&#34;ping&#34;</span>).
+			<span style="color:#75715e">// Return表示返回什么样的结果
+</span><span style="color:#75715e"></span>			<span style="color:#a6e22e">Return</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">redis</span>.<span style="color:#a6e22e">Resp</span>{
+				<span style="color:#a6e22e">Err</span>: <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">err</span>,
+			}).<span style="color:#a6e22e">Once</span>()
+		<span style="color:#75715e">// 这里再创建之前需要测试的Handler
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">h</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">my</span>.<span style="color:#a6e22e">Handler</span>{
+			<span style="color:#a6e22e">DB</span>: <span style="color:#a6e22e">caller</span>,
+		}
+		<span style="color:#75715e">// 这样调用Ping的时候,就会调用上面刚刚声明的caller了
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">response</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">h</span>.<span style="color:#a6e22e">Ping</span>()
+		<span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Equal</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">err</span>, <span style="color:#a6e22e">err</span>)
+		<span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Equal</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">test</span>.<span style="color:#a6e22e">response</span>, <span style="color:#a6e22e">response</span>)
+	}
+}
+
+</code></pre></div><p>接下来运行<code>go test -v</code></p>
+<p><img src="/img/2018/09/mock_test.png" alt="mock test"></p>
+<p>这样就实现了替换掉真正的实现,而是用 mock 对象代替调用</p>
+<h3 id="mock-生成器">Mock 生成器</h3>
+<p>每次编写这样一个对象其实是很浪费时间的,所以这里安利一个 mock 对象生成器<a href="https://github.com/vektra/mockery">mockery</a></p>
+<p>安装方式:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">go get -u github.com/vektra/mockery
+cd $GOPATH/github.com/vektra/mockery/cmd/mockery
+go install
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">mockery --help
+Usage of mockery:
+  -all
+        generates mocks <span style="color:#66d9ef">for</span> all found interfaces in all sub-directories
+  -case string
+        name the mocked file using casing convention <span style="color:#f92672">[</span>camel, snake, underscore<span style="color:#f92672">]</span> <span style="color:#f92672">(</span>default <span style="color:#e6db74">&#34;camel&#34;</span><span style="color:#f92672">)</span>
+  -cpuprofile string
+        write cpu profile to file
+  -dir string
+        directory to search <span style="color:#66d9ef">for</span> interfaces <span style="color:#f92672">(</span>default <span style="color:#e6db74">&#34;.&#34;</span><span style="color:#f92672">)</span>
+  -inpkg
+        generate a mock that goes inside the original package
+  -keeptree
+        keep the tree structure of the original interface files into a different repository. Must be used with XX
+  -name string
+        name or matching regular expression of interface to generate mock <span style="color:#66d9ef">for</span>
+  -note string
+        comment to insert into prologue of each generated file
+  -outpkg string
+        name of generated package <span style="color:#f92672">(</span>default <span style="color:#e6db74">&#34;mocks&#34;</span><span style="color:#f92672">)</span>
+  -output string
+        directory to write mocks to <span style="color:#f92672">(</span>default <span style="color:#e6db74">&#34;./mocks&#34;</span><span style="color:#f92672">)</span>
+  -print
+        print the generated mock to stdout
+  -quiet
+        suppress output to stdout
+  -recursive
+        recurse search into sub-directories
+  -tags string
+        space-separated list of additional build tags to use
+  -testonly
+        generate a mock in a _test.go file
+  -version
+        prints the installed version of mockery
+</code></pre></div><p>使用方式非常简单,只需要到需要生成的目录,执行</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">mockery -all -testonly
+</code></pre></div><p>以上面的<code>mock</code>包为例,执行命令之后就会出现</p>
+<p><img src="/img/2018/09/mock_generator.png" alt="mockery"></p>
+<p>生成的代码是这样的</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// Code generated by mockery v1.0.0. DO NOT EDIT.
+</span><span style="color:#75715e"></span>
+<span style="color:#f92672">package</span> <span style="color:#a6e22e">mocks</span>
+
+<span style="color:#f92672">import</span> <span style="color:#a6e22e">mock</span> <span style="color:#e6db74">&#34;github.com/stretchr/testify/mock&#34;</span>
+<span style="color:#f92672">import</span> <span style="color:#a6e22e">redis</span> <span style="color:#e6db74">&#34;github.com/mediocregopher/radix.v2/redis&#34;</span>
+
+<span style="color:#75715e">// RedisCaller is an autogenerated mock type for the RedisCaller type
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">RedisCaller</span> <span style="color:#66d9ef">struct</span> {
+	<span style="color:#a6e22e">mock</span>.<span style="color:#a6e22e">Mock</span>
+}
+
+<span style="color:#75715e">// Cmd provides a mock function with given fields: cmd, args
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">_m</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">RedisCaller</span>) <span style="color:#a6e22e">Cmd</span>(<span style="color:#a6e22e">cmd</span> <span style="color:#66d9ef">string</span>, <span style="color:#a6e22e">args</span> <span style="color:#f92672">...</span><span style="color:#66d9ef">interface</span>{}) <span style="color:#f92672">*</span><span style="color:#a6e22e">redis</span>.<span style="color:#a6e22e">Resp</span> {
+	<span style="color:#66d9ef">var</span> <span style="color:#a6e22e">_ca</span> []<span style="color:#66d9ef">interface</span>{}
+	<span style="color:#a6e22e">_ca</span> = append(<span style="color:#a6e22e">_ca</span>, <span style="color:#a6e22e">cmd</span>)
+	<span style="color:#a6e22e">_ca</span> = append(<span style="color:#a6e22e">_ca</span>, <span style="color:#a6e22e">args</span><span style="color:#f92672">...</span>)
+	<span style="color:#a6e22e">ret</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">_m</span>.<span style="color:#a6e22e">Called</span>(<span style="color:#a6e22e">_ca</span><span style="color:#f92672">...</span>)
+
+	<span style="color:#66d9ef">var</span> <span style="color:#a6e22e">r0</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">redis</span>.<span style="color:#a6e22e">Resp</span>
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">rf</span>, <span style="color:#a6e22e">ok</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">ret</span>.<span style="color:#a6e22e">Get</span>(<span style="color:#ae81ff">0</span>).(<span style="color:#66d9ef">func</span>(<span style="color:#66d9ef">string</span>, <span style="color:#f92672">...</span><span style="color:#66d9ef">interface</span>{}) <span style="color:#f92672">*</span><span style="color:#a6e22e">redis</span>.<span style="color:#a6e22e">Resp</span>); <span style="color:#a6e22e">ok</span> {
+		<span style="color:#a6e22e">r0</span> = <span style="color:#a6e22e">rf</span>(<span style="color:#a6e22e">cmd</span>, <span style="color:#a6e22e">args</span><span style="color:#f92672">...</span>)
+	} <span style="color:#66d9ef">else</span> {
+		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">ret</span>.<span style="color:#a6e22e">Get</span>(<span style="color:#ae81ff">0</span>) <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+			<span style="color:#a6e22e">r0</span> = <span style="color:#a6e22e">ret</span>.<span style="color:#a6e22e">Get</span>(<span style="color:#ae81ff">0</span>).(<span style="color:#f92672">*</span><span style="color:#a6e22e">redis</span>.<span style="color:#a6e22e">Resp</span>)
+		}
+	}
+
+	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">r0</span>
+}
+
+</code></pre></div><p>这样就不需要自己编写 mock 对象了,省了很多时间</p>
+<hr>
+<h2 id="测试覆盖率">测试覆盖率</h2>
+<p>相信通过上面的方法已经可以写出很多测试用例了,接下来就可以对这些测试进行一些分析,例如生成测试率报告</p>
+<p>就以刚才那个 mock 测试为例,首先,在<code>go test</code>命令执行时添加<code>-cover</code>参数就可以直接看到覆盖率了</p>
+<p>执行命令</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">go test -v -cover
+</code></pre></div><p><img src="/img/2018/09/mock_cover.png" alt="mock cover"></p>
+<p>可以看到测试覆盖率是 100%,证明了测试用例中,成功和失败的都覆盖到了</p>
+<p>还可以通过<code>-coverprofile</code>生成一份报告</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">go test -covermode<span style="color:#f92672">=</span>count -coverprofile<span style="color:#f92672">=</span>cover.out
+</code></pre></div><p>这样就可以在当前目录生成一份覆盖率报告了,之后可以通过<code>go tool cover</code>来进行分析</p>
+<p>比如说,分析每个函数的覆盖率</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">go tool cover -func<span style="color:#f92672">=</span>cover.out
+</code></pre></div><p>会看到下面的结果</p>
+<p><img src="/img/2018/09/mock_cover_func.png" alt="mock cover func"></p>
+<p>还可以使用命令来生成一个 html 页面</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">go tool cover -html<span style="color:#f92672">=</span>cover.out
+</code></pre></div><p><img src="/img/2018/09/mock_cover_html.png" alt="mock cover web"></p>
+<hr>
+<p>第一篇 Go 语言测试简单介绍了如何编写简单的测试用例,并且生成覆盖率报告,之后的内容会介绍如何编写可以测试的代码,通过抽象接口,拆分实现,来让你的代码尽可能的可以测试,保证自己代码的健壮性,还有就是利用 Docker 以及 docker-compose 进行级联测试等</p></article>
+    </section>
+
+    <footer class="ui attached segment dream-tags">
+      
+        
+          <a class="ui label" href="/tags/go" title="go">go</a>
+        
+          <a class="ui label" href="/tags/test" title="test">test</a>
+        
+      
+      <div
+        class="ui label"
+        style="float: right; cursor: pointer;"
+        onclick="savePostAsImg()">
+        <i class="save icon"></i>Save as image
+      </div>
+    </footer>
+
+    
+
+    
+    
+    
+
+  </div>
+  <div class="sixteen wide mobile sixteen wide tablet four wide computer column">
+    <article class="dream-header">
+  <section class="ui top attached center aligned segment">
+    <div class="ui small circular image">
+      
+        <img src="/img/avator.jpeg">
+      
+    </div>
+
+    
+    <div class="ui medium header">KrizsX&#39;s blog<div class="sub header" style="margin-top: 0.5rem;">加一层可以解决所有问题</div>
+    </div>
+    
+
+    <div class="ui horizontal list">
+      
+      <a class="item" href="/posts">
+        <i class="archive icon" title="Archives"></i>
+      </a>
+      
+      <a class="item" href="/tags">
+        <i class="tags icon" title="All Tags"></i>
+      </a>
+      <a class="item" href="/categories">
+        <i class="th list icon" title="All Categories"></i>
+      </a>
+    </div>
+  </section>
+
+  
+  <section class="ui attached center aligned segment dream-tags">
+    
+      <a class="ui label" href="/tags/consul" title="consul">consul</a>
+    
+      <a class="ui label" href="/tags/go" title="go">go</a>
+    
+      <a class="ui label" href="/tags/music" title="music">music</a>
+    
+      <a class="ui label" href="/tags/rpc" title="rpc">rpc</a>
+    
+      <a class="ui label" href="/tags/service-mesh" title="service-mesh">service-mesh</a>
+    
+      <a class="ui label" href="/tags/test" title="test">test</a>
+    
+      <a class="ui label" href="/tags/web" title="web">web</a>
+    
+  </section>
+  
+
+  
+  <section class="ui attached segment dream-categories">
+    <div class="ui accordion">
+      
+      
+      
+      
+      
+
+      
+        
+
+        
+          <div class="title">
+            <i class="dropdown icon"></i>
+            <a href="/categories/blog" class="item">blog</a>
+          </div>
+          <div class="content">
+            <div class="ui list">
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2019/02/service-mesh/" class="item">Service Mesh</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/09/golang-test-2/" class="item">Go语言测试(二)</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/09/golang-test-1/" class="item">Go语言测试(一)</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/07/gin-graceful/" class="item">gin的平滑关闭</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/07/song/" class="item">hugo使用shortcode引入音乐</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/04/consul-watch/" class="item">Golang中使用consul watch机制</a>
+                </div>
+              </div>
+            
+            </div>
+          </div>
+        
+      
+
+      
+    </div>
+  </section>
+  
+
+  <section class="ui attached segment header-socials">
+    <nav class="ui secondary menu dream-menu dream-socials">
+  
+  
+    <div class="item">
+      <a href="mailto:cb.kris.bj@gmail.com">
+        <i class=" mail icon" title="Email"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    <div class="item">
+      <a href="https://github.com/krizsx" target="_blank">
+        <i class=" github icon" title="GitHub"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+</nav>
+
+  </section>
+
+  <section class="ui bottom attached center aligned segment">
+    
+      <p>© 2020 - 2021 KrisX Blog</p>
+    
+
+    <p>Powered by <a href="https://gohugo.io/" target="_blank">Hugo</a> with theme <a href="https://github.com/g1eny0ung/hugo-theme-dream" target="_blank">Dream</a>.</p>
+
+    
+  </section>
+</article>
+
+  </div>
+</div>
+
+        </section>
+        <section class="back">
+          
+<nav class="ui secondary menu dream-menu">
+
+  <div class="item">
+    <i class="large link bullseye icon dream-flip-toggle" title="Flip it!"></i>
+  </div>
+  <div class="item">
+    <i class="large link home icon" title="Home" onclick="window.location.href = 'https:\/\/krizsx.github.io'"></i>
+  </div>
+  <div class="item">
+    <i class="large link icon theme-switch" onclick="themeSwitch()"></i>
+  </div>
+</nav>
+
+          <div class="ui centered relaxed grid dream-grid dream-back">
+  
+  
+  
+    <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+      <article>
+        <div class="ui top attached segment">
+          <h3 class="ui header">个人简介</h3>
+        </div>
+        <div class="ui attached segment markdown-body">
+          <p>Dream Boy</p>
+
+        </div>
+      </article>
+    </section>
+  
+
+  <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+    <article>
+      <div class="ui top attached segment">
+        <h3 class="ui header">Social Links</h3>
+      </div>
+      <div class="ui attached segment">
+        <nav class="ui secondary menu dream-menu dream-socials">
+  
+  
+    <div class="item">
+      <a href="mailto:cb.kris.bj@gmail.com">
+        <i class="large mail icon" title="Email"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    <div class="item">
+      <a href="https://github.com/krizsx" target="_blank">
+        <i class="large github icon" title="GitHub"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+</nav>
+
+      </div>
+    </article>
+  </section>
+
+  <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+    
+  </section>
+
+  
+  
+</div>
+
+        </section>
+      </div>
+    </div>
+
+    <script src="/js/jquery.min.js"></script>
+<script src="/js/semantic.min.js"></script>
+<script src="/js/jquery.overlayScrollbars.min.js"></script>
+<script src="/js/header.js"></script>
+<script src="/js/main.js"></script>
+<script src="/js/theme.js"></script>
+
+    
+<script src="/js/html2canvas.min.js"></script>
+<script src="/js/post.js"></script>
+
+
+    
+  </body>
+</html>

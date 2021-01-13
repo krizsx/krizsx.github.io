@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Tags on KrisX Blog</title>
+    <link>https://krizsx.github.io/tags/</link>
+    <description>Recent content in Tags on KrisX Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Tue, 05 Feb 2019 12:21:13 +0800</lastBuildDate>
+    
+	<atom:link href="https://krizsx.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>rpc</title>
+      <link>https://krizsx.github.io/tags/rpc/</link>
+      <pubDate>Tue, 05 Feb 2019 12:21:13 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/tags/rpc/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>service-mesh</title>
+      <link>https://krizsx.github.io/tags/service-mesh/</link>
+      <pubDate>Tue, 05 Feb 2019 12:21:13 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/tags/service-mesh/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>go</title>
+      <link>https://krizsx.github.io/tags/go/</link>
+      <pubDate>Sat, 20 Oct 2018 17:11:49 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/tags/go/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>test</title>
+      <link>https://krizsx.github.io/tags/test/</link>
+      <pubDate>Sat, 20 Oct 2018 17:11:49 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/tags/test/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>web</title>
+      <link>https://krizsx.github.io/tags/web/</link>
+      <pubDate>Sat, 14 Jul 2018 20:35:06 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/tags/web/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>music</title>
+      <link>https://krizsx.github.io/tags/music/</link>
+      <pubDate>Sun, 08 Jul 2018 09:06:00 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/tags/music/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>consul</title>
+      <link>https://krizsx.github.io/tags/consul/</link>
+      <pubDate>Sat, 21 Apr 2018 11:16:25 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/tags/consul/</guid>
+      <description></description>
+    </item>
+    
+  </channel>
+</rss>

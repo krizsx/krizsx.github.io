@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Go语言测试(二) | KrisX Blog</title>
+
+    
+<link href="/favicon.ico" rel="shortcut icon" type="image/x-icon" />
+
+
+
+
+<meta name="author" content="KrizsX" />
+<meta name="description" content="接口抽象,集成测试以及容器
+" />
+
+
+
+<meta name="generator" content="Hugo 0.74.3" />
+
+<link rel="canonical" href="https://krizsx.github.io/posts/2018/09/golang-test-2/" />
+
+
+<meta property="og:title" content="Go语言测试(二)" />
+<meta property="og:description" content="接口抽象,集成测试以及容器" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://krizsx.github.io/posts/2018/09/golang-test-2/" />
+<meta property="article:published_time" content="2018-10-20T17:11:49+08:00" />
+<meta property="article:modified_time" content="2018-10-20T17:11:49+08:00" />
+
+
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Go语言测试(二)"/>
+<meta name="twitter:description" content="接口抽象,集成测试以及容器"/>
+
+
+<link rel="stylesheet" href="/css/semantic.min.css" />
+<link rel="stylesheet" href="/css/OverlayScrollbars.min.css" />
+<link rel="stylesheet" href="/css/site.css" />
+
+
+<style>
+  a {
+    color: seagreen !important;
+  }
+</style>
+
+
+
+
+    
+<link rel="stylesheet" href="/css/github-markdown.css" />
+
+  </head>
+
+  
+  <body style="background-image: url(/img/background.png);">
+  
+    <div class="flip-container">
+      <div class="flipper">
+        <section class="front">
+          
+<nav class="ui secondary menu dream-menu">
+
+  <div class="item">
+    <i class="large link bullseye icon dream-flip-toggle" title="Flip it!"></i>
+  </div>
+  <div class="item">
+    <i class="large link home icon" title="Home" onclick="window.location.href = 'https:\/\/krizsx.github.io'"></i>
+  </div>
+  <div class="item">
+    <i class="large link icon theme-switch" onclick="themeSwitch()"></i>
+  </div>
+</nav>
+
+          
+<div class="ui centered relaxed grid dream-grid">
+  <div class="sixteen wide mobile sixteen wide tablet twelve wide computer column markdown-body dream-single">
+
+    <section class="ui top attached segment" id="dream-save-post-as-img">
+      <header style="margin-top: 0 !important;">
+        <h1 class="ui large header">
+          Go语言测试(二)
+          <div class="sub header">
+            @
+            
+              KrizsX
+            
+            · Saturday, Oct 20, 2018
+            · 5 minute read
+            · Update at Oct 20, 2018
+          </div>
+        </h1>
+      </header>
+
+      
+
+      <article style="margin-top: 2rem;"><p>接口抽象,集成测试以及容器</p>
+<p>Go 语言要想写出可测试的代码,就需要对项目结构以及代码设计有一定要求了,基本上来说,只要灵活使用<code>interface</code>,就可以提高测试覆盖率,让代码质量更有保证</p>
+<h1 id="object-oriented-programming-oop-面向对象编程">Object-Oriented Programming (OOP) 面向对象编程</h1>
+<p>OOP 是经常使用的一种编程思想,在 Go 语言中,也有这种思想存在,虽然 Go 语言没有继承,但是可以通过给<code>struct</code>绑定<code>method</code>以及,<code>interface</code>和<code>struct</code>之间的两两组合实现 OOP</p>
+<p>我个人认为 OOP 是非常重要的一种思想,在代码复杂度越来越高的时候,越能体会到这种思想带来的好处,接下来的测试基本都是基于这个思想</p>
+<h1 id="如何编写可测试的代码">如何编写可测试的代码</h1>
+<p>很长一段时间里,我都觉得我写的代码好像没有办法写测试用例,它总是与各种各样的东西有关,单元测试看起来是不可能的,在经历几次重构之后,我发现其实所有的代码都是可以测试的,只要用合适的方式设计你的代码,就可以写出可测试的代码</p>
+<h2 id="1-尽量避免全局变量">1. 尽量避免全局变量</h2>
+<p>之前我的代码中,经常使用全局变量,因为用起来很方便,每个包都可以直接获取,但是这种做法会让我在写测试用例的时候,不得不初始化一遍这些全局变量,这让我感觉很难受,而且在你测试单个函数的时候,还需要查看源码,确认使用了哪些全局变量然后才能编写测试用例,不同的函数需要初始化的全局变量还不同,这无疑是不可取的,所以尽可能的不要使用全局变量,这里可以借鉴一点 FP(Functional Programming)的思想,函数需要的变量都应该是使用参数来传入,这样的话每一个函数都是独立的,不与其他变量耦合</p>
+<h2 id="2-接口抽象">2. 接口抽象</h2>
+<p>在调用函数的时候,如果直接使用包或者<code>struct</code>去调用,那么就会导致函数与对应的包或者<code>struct</code>产生耦合,这样就很难编写单元测试了.这时候可以使用<code>interface</code>来解耦,一是解除函数与固定<code>struct</code>的耦合,二是解除包与包之间的耦合,这样的话每个包,每个函数都是独立的,可以很方便的进行单元测试</p>
+<h1 id="举个例子-">举个例子 🌰</h1>
+<p>这个例子里一共有两个包,<code>model</code>包是数据结构,<code>api</code>包用来提供接口</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">model</span>
+
+<span style="color:#75715e">// Message test struct
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">Message</span> <span style="color:#66d9ef">struct</span> {
+	<span style="color:#a6e22e">Name</span> <span style="color:#66d9ef">string</span>
+	<span style="color:#a6e22e">Info</span> <span style="color:#66d9ef">string</span>
+}
+
+<span style="color:#75715e">// TableName 指定表名
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">Message</span>) <span style="color:#a6e22e">TableName</span>() <span style="color:#66d9ef">string</span> {
+	<span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;message&#34;</span>
+}
+
+
+</code></pre></div><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">api</span>
+
+<span style="color:#f92672">import</span> (
+	<span style="color:#e6db74">&#34;demo/message-demo/model&#34;</span>
+
+	<span style="color:#e6db74">&#34;github.com/jinzhu/gorm&#34;</span>
+)
+
+<span style="color:#66d9ef">var</span> (
+	<span style="color:#a6e22e">db</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">gorm</span>.<span style="color:#a6e22e">DB</span> <span style="color:#75715e">// 使用了全局变量
+</span><span style="color:#75715e"></span>)
+
+<span style="color:#75715e">// GetMessage 获取信息
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">GetMessage</span>(<span style="color:#a6e22e">name</span> <span style="color:#66d9ef">string</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">model</span>.<span style="color:#a6e22e">Message</span> {
+	<span style="color:#a6e22e">message</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">model</span>.<span style="color:#a6e22e">Message</span>{}
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">Where</span>(<span style="color:#e6db74">&#34;name = ?&#34;</span>,<span style="color:#a6e22e">name</span>).<span style="color:#a6e22e">First</span>(<span style="color:#a6e22e">message</span>).<span style="color:#a6e22e">Error</span>; <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> { <span style="color:#75715e">// 这里直接使用 gorm去查询数据库
+</span><span style="color:#75715e"></span>		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+	}
+	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">message</span>
+}
+
+</code></pre></div><p>如果我想要对<code>api</code>包进行接口测试,目前的写法很难进行单元测试,因为<code>GetMessage</code>这个函数与<code>db</code>这个变量耦合,所以想要测试这个函数的话,必须构建一个<code>*gorm.DB</code>对象,然而如果这样的话,函数执行时,就会真的去查数据库,这样就没办法编写单元测试了,接下来按照 OOP 的思想,以及上面两个建议来重构代码</p>
+<h2 id="1-抽象接口">1. 抽象接口</h2>
+<p>在<code>api</code>包中,调用了<code>gorm.DB</code>的<code>First</code>函数,这个函数是用来查询数据库获取第一条数据的,这样的话就可以抽象出一个接口来代替<code>gorm.DB</code>这个 struct,像这样</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// MessageDB 接口抽象
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">MessageDB</span> <span style="color:#66d9ef">interface</span> {
+	<span style="color:#a6e22e">FirstMessage</span>(<span style="color:#a6e22e">name</span> <span style="color:#66d9ef">string</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">model</span>.<span style="color:#a6e22e">Message</span>
+}
+</code></pre></div><p>然后在<code>GetMessage</code>函数中,就调用<code>MessageDB</code>接口而不是调用<code>gorm.DB</code></p>
+<h2 id="2-定义对象">2. 定义对象</h2>
+<p>定义好的<code>MessageDB</code>这个接口,应该是其他地方实现之后传给<code>api</code>这个包里面,实现依赖注入,刚才也建议不要使用全局变量,再加上 OOP 的思想,所以还需要定义一个<code>strcut</code>来绑定<code>GetMessage</code>这个函数,并且将<code>MessageDB</code>设置为这个<code>struct</code>的一个字段,这样的话,代码就会改造成这样</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">api</span>
+
+<span style="color:#f92672">import</span> (
+	<span style="color:#e6db74">&#34;demo/message-demo/model&#34;</span>
+)
+
+<span style="color:#75715e">// MessageDB 接口抽象
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">MessageDB</span> <span style="color:#66d9ef">interface</span> {
+	<span style="color:#a6e22e">FirstMessage</span>(<span style="color:#a6e22e">name</span> <span style="color:#66d9ef">string</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">model</span>.<span style="color:#a6e22e">Message</span>
+}
+
+<span style="color:#75715e">// MessageAPI 用来保存DB,并且绑定方法
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">MessageAPI</span> <span style="color:#66d9ef">struct</span> {
+	<span style="color:#a6e22e">DB</span> <span style="color:#a6e22e">MessageDB</span>
+}
+
+<span style="color:#75715e">// NewMessageAPI 构造函数
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">NewMessageAPI</span>(<span style="color:#a6e22e">db</span> <span style="color:#a6e22e">MessageDB</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">MessageAPI</span> {
+	<span style="color:#66d9ef">return</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">MessageAPI</span>{<span style="color:#a6e22e">DB</span>: <span style="color:#a6e22e">db</span>}
+}
+
+<span style="color:#75715e">// GetMessage 获取信息
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">m</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">MessageAPI</span>) <span style="color:#a6e22e">GetMessage</span>(<span style="color:#a6e22e">name</span> <span style="color:#66d9ef">string</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">model</span>.<span style="color:#a6e22e">Message</span> {
+	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">DB</span>.<span style="color:#a6e22e">FirstMessage</span>(<span style="color:#a6e22e">name</span>)
+}
+
+</code></pre></div><p>至于对于接口的实现呢,可以创建一个<code>database</code>包,把之前的代码移过去,像这样</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">database</span>
+
+<span style="color:#f92672">import</span> (
+	<span style="color:#e6db74">&#34;demo/message-demo/model&#34;</span>
+
+	<span style="color:#e6db74">&#34;github.com/jinzhu/gorm&#34;</span>
+)
+
+<span style="color:#75715e">// GormDB 真正查询数据库的接口实现
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">GormDB</span> <span style="color:#66d9ef">struct</span> {
+	<span style="color:#a6e22e">db</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">gorm</span>.<span style="color:#a6e22e">DB</span>
+}
+
+<span style="color:#75715e">// NewGormDB 构造器
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">NewGormDB</span>(<span style="color:#a6e22e">url</span> <span style="color:#66d9ef">string</span>) (<span style="color:#f92672">*</span><span style="color:#a6e22e">GormDB</span>, <span style="color:#66d9ef">error</span>) {
+	<span style="color:#a6e22e">db</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">gorm</span>.<span style="color:#a6e22e">Open</span>(<span style="color:#e6db74">&#34;mysql&#34;</span>, <span style="color:#a6e22e">url</span>)
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+	}
+	<span style="color:#66d9ef">return</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">GormDB</span>{<span style="color:#a6e22e">db</span>: <span style="color:#a6e22e">db</span>}, <span style="color:#66d9ef">nil</span>
+}
+
+<span style="color:#75715e">// Close 关闭数据库连接
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">g</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">GormDB</span>) <span style="color:#a6e22e">Close</span>() <span style="color:#66d9ef">error</span> {
+	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">g</span>.<span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">Close</span>()
+}
+
+<span style="color:#75715e">// FirstMessage 接口实现
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">g</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">GormDB</span>) <span style="color:#a6e22e">FirstMessage</span>(<span style="color:#a6e22e">name</span> <span style="color:#66d9ef">string</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">model</span>.<span style="color:#a6e22e">Message</span> {
+	<span style="color:#a6e22e">message</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">model</span>.<span style="color:#a6e22e">Message</span>{}
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">g</span>.<span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">Where</span>(<span style="color:#e6db74">&#34;name = ?&#34;</span>,<span style="color:#a6e22e">name</span>).<span style="color:#a6e22e">First</span>(<span style="color:#a6e22e">message</span>).<span style="color:#a6e22e">Error</span>; <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+	}
+	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">message</span>
+}
+</code></pre></div><h2 id="3-重构结果">3. 重构结果</h2>
+<p>写成这样的好处:</p>
+<ul>
+<li><code>api</code>包移除了对于<code>gorm.DB</code>这个第三方包的依赖</li>
+<li><code>MessageDB</code>这个接口可以被多种实现替换,可以使用 mock 来代替查询真正的数据库</li>
+<li><code>MessageAPI</code>这个对象用来存储<code>MessageDB</code>,移除了全局变量,单元测试时只需要初始化这一个对象即可,不需要再去看源码查找相关的代码</li>
+</ul>
+<h2 id="4-编写测试用例">4. 编写测试用例</h2>
+<p>目前这样的代码结构就可以很方便的编写测试用例,可以使用 mock 对象,和上一篇提到的<code>TableDriver</code></p>
+<p>首先用<code>mockery</code>生成接口的 mock 对象</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sh" data-lang="sh">$ mockery -all
+Generating mock <span style="color:#66d9ef">for</span>: MessageDB in file: mocks/MessageDB.go
+</code></pre></div><p>创建<code>api_test.go</code>文件,编写测试用例,代码如下:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">api_test</span>
+
+<span style="color:#f92672">import</span> (
+	<span style="color:#e6db74">&#34;testing&#34;</span>
+
+	<span style="color:#e6db74">&#34;github.com/stretchr/testify/assert&#34;</span>
+
+	<span style="color:#e6db74">&#34;demo/message-demo/api&#34;</span>
+	<span style="color:#e6db74">&#34;demo/message-demo/api/mocks&#34;</span>
+	<span style="color:#e6db74">&#34;demo/message-demo/model&#34;</span>
+)
+
+<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestMessageAPI_GetMessage</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+	<span style="color:#a6e22e">db</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">mocks</span>.<span style="color:#a6e22e">MessageDB</span>{}
+	<span style="color:#a6e22e">db</span>.
+		<span style="color:#a6e22e">On</span>(<span style="color:#e6db74">&#34;FirstMessage&#34;</span>, <span style="color:#e6db74">&#34;aaa&#34;</span>).<span style="color:#a6e22e">Return</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">model</span>.<span style="color:#a6e22e">Message</span>{<span style="color:#a6e22e">Name</span>: <span style="color:#e6db74">&#34;&#34;</span>, <span style="color:#a6e22e">Info</span>: <span style="color:#e6db74">&#34;bbb&#34;</span>}).
+		<span style="color:#a6e22e">On</span>(<span style="color:#e6db74">&#34;FirstMessage&#34;</span>, <span style="color:#e6db74">&#34;bbb&#34;</span>).<span style="color:#a6e22e">Return</span>(<span style="color:#66d9ef">nil</span>)
+
+	<span style="color:#a6e22e">m</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">api</span>.<span style="color:#a6e22e">NewMessageAPI</span>(<span style="color:#a6e22e">db</span>)
+
+	<span style="color:#a6e22e">testCases</span> <span style="color:#f92672">:=</span> []<span style="color:#66d9ef">struct</span> {
+		<span style="color:#a6e22e">name</span>  <span style="color:#66d9ef">string</span>
+		<span style="color:#a6e22e">isNil</span> <span style="color:#66d9ef">bool</span>
+		<span style="color:#a6e22e">info</span>  <span style="color:#66d9ef">string</span>
+	}{
+		{<span style="color:#e6db74">&#34;aaa&#34;</span>, <span style="color:#66d9ef">false</span>, <span style="color:#e6db74">&#34;bbb&#34;</span>},
+		{<span style="color:#e6db74">&#34;bbb&#34;</span>, <span style="color:#66d9ef">true</span>, <span style="color:#e6db74">&#34;&#34;</span>},
+	}
+
+	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">tc</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">testCases</span> {
+		<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Run</span>(<span style="color:#a6e22e">tc</span>.<span style="color:#a6e22e">name</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">tt</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+			<span style="color:#a6e22e">msg</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">GetMessage</span>(<span style="color:#a6e22e">tc</span>.<span style="color:#a6e22e">name</span>)
+			<span style="color:#a6e22e">isNil</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">msg</span> <span style="color:#f92672">==</span> <span style="color:#66d9ef">nil</span>
+			<span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Equal</span>(<span style="color:#a6e22e">tt</span>, <span style="color:#a6e22e">tc</span>.<span style="color:#a6e22e">isNil</span>, <span style="color:#a6e22e">isNil</span>)
+			<span style="color:#66d9ef">if</span> !<span style="color:#a6e22e">isNil</span> {
+				<span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Equal</span>(<span style="color:#a6e22e">tt</span>, <span style="color:#a6e22e">tc</span>.<span style="color:#a6e22e">info</span>, <span style="color:#a6e22e">msg</span>.<span style="color:#a6e22e">Info</span>)
+			}
+		})
+	}
+}
+</code></pre></div><p>通过生成的 mock 对象,就可以模拟一个<code>MessageDB</code>接口的实现,然后就可以测试<code>api</code>包了!</p>
+<h1 id="集成测试">集成测试</h1>
+<p>上面的这种写法只是利用了 mock 来进行模拟测试,在很多场景下,其实这个并不能满足需求,例如我想对<code>database</code>这个包进行测试,但是它与 mysql 是无法解耦的,这时候我认为使用 docker 就是最好的方式了,docker 可以提供给你一个稳定的测试环境,每一次的测试,都是相同的初始环境,这对于测试来说是最好的了,所以接下来就利用 docker 来编写集成测试,集成测试应该写在<code>integration_test.go</code>这个文件中,表示里面的测试用例是需要外部依赖的</p>
+<h2 id="1-使用-docker-启动一个-mysql">1. 使用 docker 启动一个 mysql</h2>
+<p>官方已经提供了一个镜像,只需要把 sql 文件添加到镜像中固定的目录,在容器启动时就会自动执行了,一共需要 3 个文件:</p>
+<p><img src="/images/2019/03/golang-test-2-docker.png" alt=""></p>
+<h3 id="dockerfile"><code>Dockerfile</code></h3>
+<pre><code>FROM mysql:5.7.23
+
+# 设置密码
+ENV MYSQL_ROOT_PASSWORD=111111
+# 添加初始化脚本
+ADD ./test.sql /docker-entrypoint-initdb.d/
+# 修改mysql默认配置文件
+ADD ./mysqld.cnf /etc/mysql/mysql.conf.d/
+</code></pre><h3 id="mysql-配置文件mysqldcnf">mysql 配置文件<code>mysqld.cnf</code></h3>
+<pre><code># Copyright (c) 2014, 2016, Oracle and/or its affiliates. All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+
+#
+# The MySQL  Server configuration file.
+#
+# For explanations see
+# http://dev.mysql.com/doc/mysql/en/server-system-variables.html
+
+[mysqld]
+pid-file        = /var/run/mysqld/mysqld.pid
+socket          = /var/run/mysqld/mysqld.sock
+datadir         = /var/lib/mysql
+#log-error      = /var/log/mysql/error.log
+# By default we only accept connections from localhost
+#bind-address   = 127.0.0.1
+# Disabling symbolic-links is recommended to prevent assorted security risks
+symbolic-links=0
+# character_set
+default-storage-engine=INNODB
+character-set-server=utf8mb4
+collation-server=utf8_general_ci
+
+[client]
+default-character-set = utf8mb4
+</code></pre><h3 id="用于测试的testsql文件">用于测试的<code>test.sql</code>文件</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sql" data-lang="sql"><span style="color:#66d9ef">CREATE</span> <span style="color:#66d9ef">DATABASE</span> test character <span style="color:#66d9ef">set</span> utf8;
+
+USE test;
+
+<span style="color:#66d9ef">CREATE</span> <span style="color:#66d9ef">TABLE</span> <span style="color:#f92672">`</span>message<span style="color:#f92672">`</span>(
+    <span style="color:#f92672">`</span>name<span style="color:#f92672">`</span> varchar(<span style="color:#ae81ff">50</span>) <span style="color:#66d9ef">DEFAULT</span> <span style="color:#66d9ef">NULL</span> <span style="color:#66d9ef">COMMENT</span> <span style="color:#e6db74">&#39;名字&#39;</span>,
+    <span style="color:#f92672">`</span>info<span style="color:#f92672">`</span> varchar(<span style="color:#ae81ff">50</span>) <span style="color:#66d9ef">DEFAULT</span> <span style="color:#66d9ef">NULL</span> <span style="color:#66d9ef">COMMENT</span> <span style="color:#e6db74">&#39;信息&#39;</span>
+) ENGINE<span style="color:#f92672">=</span>InnoDB CHARSET<span style="color:#f92672">=</span>utf8 <span style="color:#66d9ef">COMMENT</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#39;测试用&#39;</span>;
+
+<span style="color:#66d9ef">INSERT</span> <span style="color:#66d9ef">INTO</span> message (name,info) <span style="color:#66d9ef">VALUES</span> (<span style="color:#e6db74">&#39;aaa&#39;</span>,<span style="color:#e6db74">&#39;bbb&#39;</span>);
+<span style="color:#66d9ef">INSERT</span> <span style="color:#66d9ef">INTO</span> message (name,info) <span style="color:#66d9ef">VALUES</span> (<span style="color:#e6db74">&#39;bbb&#39;</span>,<span style="color:#e6db74">&#39;ccc&#39;</span>);
+</code></pre></div><h3 id="构建镜像并启动">构建镜像并启动</h3>
+<p><img src="/images/2019/03/golang-test-2-docker-start.png" alt=""></p>
+<p>这样的话就可以每次都有一个稳定的测试数据库来进行测试了</p>
+<h2 id="2-利用环境变量跳过或者运行测试用例">2. 利用环境变量跳过或者运行测试用例</h2>
+<p>我看到过很多写集成测试的方式,我认为使用环境变量来控制是最好的,在这个例子中,就可以在环境变量中传入 mysql 的地址,如果环境变量中无法获取这个地址,那么就可以跳过集成测试,代码如下</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">database_test</span>
+
+<span style="color:#f92672">import</span> (
+	<span style="color:#e6db74">&#34;demo/message-demo/database&#34;</span>
+	<span style="color:#e6db74">&#34;fmt&#34;</span>
+	<span style="color:#e6db74">&#34;os&#34;</span>
+	<span style="color:#e6db74">&#34;testing&#34;</span>
+
+	<span style="color:#a6e22e">_</span> <span style="color:#e6db74">&#34;github.com/go-sql-driver/mysql&#34;</span>
+	<span style="color:#e6db74">&#34;github.com/stretchr/testify/assert&#34;</span>
+	<span style="color:#e6db74">&#34;github.com/stretchr/testify/require&#34;</span>
+)
+
+<span style="color:#66d9ef">const</span> (
+	<span style="color:#a6e22e">envMySQL</span> = <span style="color:#e6db74">&#34;MYSQL_ADDR&#34;</span> <span style="color:#75715e">//
+</span><span style="color:#75715e"></span>	<span style="color:#75715e">// 这里写的比较简单,用户名和密码就写死了
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">urlStr</span> = <span style="color:#e6db74">&#34;root:111111@tcp(%s)/test?charset=utf8&amp;parseTime=true&amp;loc=Local&amp;multiStatements=true&#34;</span>
+)
+
+<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">TestGormDB</span>(<span style="color:#a6e22e">t</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+	<span style="color:#a6e22e">addr</span>, <span style="color:#a6e22e">exists</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">LookupEnv</span>(<span style="color:#a6e22e">envMySQL</span>) <span style="color:#75715e">// 从环境变量中查找数据库地址
+</span><span style="color:#75715e"></span>	<span style="color:#66d9ef">if</span> !<span style="color:#a6e22e">exists</span> {
+		<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Skipf</span>(<span style="color:#e6db74">&#34;%s not set, skip GormDB test&#34;</span>, <span style="color:#a6e22e">envMySQL</span>)
+	}
+
+	<span style="color:#a6e22e">db</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">database</span>.<span style="color:#a6e22e">NewGormDB</span>(<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Sprintf</span>(<span style="color:#a6e22e">urlStr</span>, <span style="color:#a6e22e">addr</span>))
+	<span style="color:#a6e22e">require</span>.<span style="color:#a6e22e">NoError</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">err</span>)
+	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">Close</span>()
+
+	<span style="color:#a6e22e">testCases</span> <span style="color:#f92672">:=</span> []<span style="color:#66d9ef">struct</span> {
+		<span style="color:#a6e22e">name</span> <span style="color:#66d9ef">string</span>
+		<span style="color:#a6e22e">info</span> <span style="color:#66d9ef">string</span>
+	}{
+		{<span style="color:#e6db74">&#34;aaa&#34;</span>, <span style="color:#e6db74">&#34;bbb&#34;</span>},
+		{<span style="color:#e6db74">&#34;bbb&#34;</span>, <span style="color:#e6db74">&#34;ccc&#34;</span>},
+	}
+
+	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">tc</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">testCases</span> {
+		<span style="color:#a6e22e">t</span>.<span style="color:#a6e22e">Run</span>(<span style="color:#a6e22e">tc</span>.<span style="color:#a6e22e">name</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">tt</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">testing</span>.<span style="color:#a6e22e">T</span>) {
+			<span style="color:#a6e22e">msg</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">db</span>.<span style="color:#a6e22e">FirstMessage</span>(<span style="color:#a6e22e">tc</span>.<span style="color:#a6e22e">name</span>)
+			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">NotNil</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">msg</span>) {
+				<span style="color:#a6e22e">assert</span>.<span style="color:#a6e22e">Equal</span>(<span style="color:#a6e22e">t</span>, <span style="color:#a6e22e">tc</span>.<span style="color:#a6e22e">info</span>, <span style="color:#a6e22e">msg</span>.<span style="color:#a6e22e">Info</span>)
+			}
+		})
+	}
+}
+
+</code></pre></div><p>运行的结果就像这样</p>
+<p><img src="/images/2019/03/golang-test-2-docker-test.png" alt=""></p>
+<p>利用 docker,就可以进行各种各样的集成测试了,每次测试之后只需要把容器删除就可以</p>
+<p><img src="/images/2019/03/golang-test-2-docker-stop.png" alt=""></p>
+<h1 id="docker-快速启动命令">Docker 快速启动命令</h1>
+<h2 id="redis">Redis</h2>
+<h3 id="1-start">1. start</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sh" data-lang="sh">docker run -d -p 6379:6379 --name redis-quickstart redis
+</code></pre></div><h3 id="2-test">2. test</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sh" data-lang="sh">$ redis-cli
+127.0.0.1:6379&gt; set a b
+OK
+127.0.0.1:6379&gt; get a
+<span style="color:#e6db74">&#34;b&#34;</span>
+</code></pre></div><h3 id="3-stop">3. stop</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sh" data-lang="sh">docker stop redis-quickstart
+docker rm redis-quickstart
+docker system prune --volumes -f
+</code></pre></div><h2 id="elasticsearch--kibana">ElasticSearch &amp; Kibana</h2>
+<h3 id="1-创建一个网络">1. 创建一个网络</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sh" data-lang="sh">docker network create es
+</code></pre></div><h3 id="2-启动-es">2. 启动 ES</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sh" data-lang="sh">docker run -d --name elasticsearch --net es -p 9200:9200 -p 9300:9300 -e <span style="color:#e6db74">&#34;discovery.type=single-node&#34;</span> elasticsearch
+</code></pre></div><h3 id="3-启动-kibana">3. 启动 Kibana</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sh" data-lang="sh">docker run -d --name kibana --net es -p 5601:5601 kibana
+</code></pre></div><blockquote>
+<p>如果想连接其他的 es 集群,可以使用<code>-e</code>,来指定
+docker run -d &ndash;name kibana -p 5601:5601 kibana -e http://xxxx:9200</p>
+</blockquote>
+<h3 id="4-测试-es">4. 测试 ES</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sh" data-lang="sh"><span style="color:#75715e"># 新建一个index</span>
+$ curl -X PUT <span style="color:#e6db74">&#39;localhost:9200/weather&#39;</span>
+<span style="color:#f92672">{</span><span style="color:#e6db74">&#34;acknowledged&#34;</span>:true,<span style="color:#e6db74">&#34;shards_acknowledged&#34;</span>:true,<span style="color:#e6db74">&#34;index&#34;</span>:<span style="color:#e6db74">&#34;weather&#34;</span><span style="color:#f92672">}</span>
+<span style="color:#75715e"># 查询</span>
+$ curl -X GET <span style="color:#e6db74">&#39;http://127.0.0.1:9200/_cat/indices&#39;</span>
+yellow open weather _KNhQA1mR-eRH8mJIxxEIQ <span style="color:#ae81ff">5</span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span>  324b  324b
+yellow open .kibana P-U4OWMFS3iW5ZcOM6FgjQ <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">0</span> 3.1kb 3.1kb
+</code></pre></div><h3 id="5-测试-kibana">5. 测试 kibana</h3>
+<p>打开<a href="http://localhost:5601">http://localhost:5601</a></p>
+<h3 id="6-关闭">6. 关闭</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-sh" data-lang="sh">docker stop kibana
+docker rm kibana
+docker stop elasticsearch
+docker rm elasticsearch
+docker system prune --volumes -f
+</code></pre></div></article>
+    </section>
+
+    <footer class="ui attached segment dream-tags">
+      
+        
+          <a class="ui label" href="/tags/test" title="test">test</a>
+        
+          <a class="ui label" href="/tags/go" title="go">go</a>
+        
+      
+      <div
+        class="ui label"
+        style="float: right; cursor: pointer;"
+        onclick="savePostAsImg()">
+        <i class="save icon"></i>Save as image
+      </div>
+    </footer>
+
+    
+
+    
+    
+    
+
+  </div>
+  <div class="sixteen wide mobile sixteen wide tablet four wide computer column">
+    <article class="dream-header">
+  <section class="ui top attached center aligned segment">
+    <div class="ui small circular image">
+      
+        <img src="/img/avator.jpeg">
+      
+    </div>
+
+    
+    <div class="ui medium header">KrizsX&#39;s blog<div class="sub header" style="margin-top: 0.5rem;">加一层可以解决所有问题</div>
+    </div>
+    
+
+    <div class="ui horizontal list">
+      
+      <a class="item" href="/posts">
+        <i class="archive icon" title="Archives"></i>
+      </a>
+      
+      <a class="item" href="/tags">
+        <i class="tags icon" title="All Tags"></i>
+      </a>
+      <a class="item" href="/categories">
+        <i class="th list icon" title="All Categories"></i>
+      </a>
+    </div>
+  </section>
+
+  
+  <section class="ui attached center aligned segment dream-tags">
+    
+      <a class="ui label" href="/tags/consul" title="consul">consul</a>
+    
+      <a class="ui label" href="/tags/go" title="go">go</a>
+    
+      <a class="ui label" href="/tags/music" title="music">music</a>
+    
+      <a class="ui label" href="/tags/rpc" title="rpc">rpc</a>
+    
+      <a class="ui label" href="/tags/service-mesh" title="service-mesh">service-mesh</a>
+    
+      <a class="ui label" href="/tags/test" title="test">test</a>
+    
+      <a class="ui label" href="/tags/web" title="web">web</a>
+    
+  </section>
+  
+
+  
+  <section class="ui attached segment dream-categories">
+    <div class="ui accordion">
+      
+      
+      
+      
+      
+
+      
+        
+
+        
+          <div class="title">
+            <i class="dropdown icon"></i>
+            <a href="/categories/blog" class="item">blog</a>
+          </div>
+          <div class="content">
+            <div class="ui list">
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2019/02/service-mesh/" class="item">Service Mesh</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/09/golang-test-2/" class="item">Go语言测试(二)</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/09/golang-test-1/" class="item">Go语言测试(一)</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/07/gin-graceful/" class="item">gin的平滑关闭</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/07/song/" class="item">hugo使用shortcode引入音乐</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/04/consul-watch/" class="item">Golang中使用consul watch机制</a>
+                </div>
+              </div>
+            
+            </div>
+          </div>
+        
+      
+
+      
+    </div>
+  </section>
+  
+
+  <section class="ui attached segment header-socials">
+    <nav class="ui secondary menu dream-menu dream-socials">
+  
+  
+    <div class="item">
+      <a href="mailto:cb.kris.bj@gmail.com">
+        <i class=" mail icon" title="Email"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    <div class="item">
+      <a href="https://github.com/krizsx" target="_blank">
+        <i class=" github icon" title="GitHub"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+</nav>
+
+  </section>
+
+  <section class="ui bottom attached center aligned segment">
+    
+      <p>© 2020 - 2021 KrisX Blog</p>
+    
+
+    <p>Powered by <a href="https://gohugo.io/" target="_blank">Hugo</a> with theme <a href="https://github.com/g1eny0ung/hugo-theme-dream" target="_blank">Dream</a>.</p>
+
+    
+  </section>
+</article>
+
+  </div>
+</div>
+
+        </section>
+        <section class="back">
+          
+<nav class="ui secondary menu dream-menu">
+
+  <div class="item">
+    <i class="large link bullseye icon dream-flip-toggle" title="Flip it!"></i>
+  </div>
+  <div class="item">
+    <i class="large link home icon" title="Home" onclick="window.location.href = 'https:\/\/krizsx.github.io'"></i>
+  </div>
+  <div class="item">
+    <i class="large link icon theme-switch" onclick="themeSwitch()"></i>
+  </div>
+</nav>
+
+          <div class="ui centered relaxed grid dream-grid dream-back">
+  
+  
+  
+    <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+      <article>
+        <div class="ui top attached segment">
+          <h3 class="ui header">个人简介</h3>
+        </div>
+        <div class="ui attached segment markdown-body">
+          <p>Dream Boy</p>
+
+        </div>
+      </article>
+    </section>
+  
+
+  <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+    <article>
+      <div class="ui top attached segment">
+        <h3 class="ui header">Social Links</h3>
+      </div>
+      <div class="ui attached segment">
+        <nav class="ui secondary menu dream-menu dream-socials">
+  
+  
+    <div class="item">
+      <a href="mailto:cb.kris.bj@gmail.com">
+        <i class="large mail icon" title="Email"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    <div class="item">
+      <a href="https://github.com/krizsx" target="_blank">
+        <i class="large github icon" title="GitHub"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+</nav>
+
+      </div>
+    </article>
+  </section>
+
+  <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+    
+  </section>
+
+  
+  
+</div>
+
+        </section>
+      </div>
+    </div>
+
+    <script src="/js/jquery.min.js"></script>
+<script src="/js/semantic.min.js"></script>
+<script src="/js/jquery.overlayScrollbars.min.js"></script>
+<script src="/js/header.js"></script>
+<script src="/js/main.js"></script>
+<script src="/js/theme.js"></script>
+
+    
+<script src="/js/html2canvas.min.js"></script>
+<script src="/js/post.js"></script>
+
+
+    
+  </body>
+</html>

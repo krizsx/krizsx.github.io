@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Posts on KrisX Blog</title>
+    <link>https://krizsx.github.io/posts/</link>
+    <description>Recent content in Posts on KrisX Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Tue, 05 Feb 2019 12:21:13 +0800</lastBuildDate>
+    
+	<atom:link href="https://krizsx.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Service Mesh</title>
+      <link>https://krizsx.github.io/posts/2019/02/service-mesh/</link>
+      <pubDate>Tue, 05 Feb 2019 12:21:13 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/posts/2019/02/service-mesh/</guid>
+      <description>&lt;p&gt;微服务的未来&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Go语言测试(二)</title>
+      <link>https://krizsx.github.io/posts/2018/09/golang-test-2/</link>
+      <pubDate>Sat, 20 Oct 2018 17:11:49 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/posts/2018/09/golang-test-2/</guid>
+      <description>&lt;p&gt;接口抽象,集成测试以及容器&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Go语言测试(一)</title>
+      <link>https://krizsx.github.io/posts/2018/09/golang-test-1/</link>
+      <pubDate>Sun, 30 Sep 2018 16:57:12 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/posts/2018/09/golang-test-1/</guid>
+      <description>&lt;p&gt;如何编写简单测试?&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>gin的平滑关闭</title>
+      <link>https://krizsx.github.io/posts/2018/07/gin-graceful/</link>
+      <pubDate>Sat, 14 Jul 2018 20:35:06 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/posts/2018/07/gin-graceful/</guid>
+      <description>&lt;p&gt;&lt;a href=&#34;https://github.com/gin-gonic/gin&#34;&gt;Gin&lt;/a&gt; 是一个 go 语言的高性能 web 框架,之前用过很多次,但是平滑关闭一直没有办法做到,最近又重新看了一次 gin 的文档,突然发现已经有办法了,赶紧尝试一波&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>hugo使用shortcode引入音乐</title>
+      <link>https://krizsx.github.io/posts/2018/07/song/</link>
+      <pubDate>Sun, 08 Jul 2018 09:06:00 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/posts/2018/07/song/</guid>
+      <description>&lt;h4&gt;wakeup-倪安东&lt;/h4&gt;
+&lt;audio controls autoplay loop preload=&#34;none&#34; src=&#34;https://krizsx.github.io/music/2018/07/wakeup.m4a&#34;&gt;
+  &lt;p&gt;Your browser does not support the &lt;code&gt;audio&lt;/code&gt; element.&lt;/p&gt;
+&lt;/audio&gt;
+
+&lt;p&gt;最近在找歌,然后就突然想到,hugo 中可不可以引入音乐播放器?于是去网上搜索了一下,发现并没有现成的&lt;/p&gt;
+&lt;p&gt;于是去看了看官网,发现了关于&lt;a href=&#34;https://gohugo.io/content-management/shortcodes/#readout&#34;&gt;shortcode&lt;/a&gt;的介绍,就想到了用这个来引入音乐&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Golang中使用consul watch机制</title>
+      <link>https://krizsx.github.io/posts/2018/04/consul-watch/</link>
+      <pubDate>Sat, 21 Apr 2018 11:16:25 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/posts/2018/04/consul-watch/</guid>
+      <description>&lt;p&gt;最近使用了&lt;a href=&#34;https://www.consul.io/&#34;&gt;consul&lt;/a&gt;作为服务的注册中心,但是在使用时发现官方的 api 没有提供可以添加 watch 的接口,这样的话服务节点信息变化就不能及时获取,但是在查看 consul 源码中发现了官方其实还是给了方法,只不过没有暴露 api 而已,直接上代码&lt;/p&gt;</description>
+    </item>
+    
+  </channel>
+</rss>

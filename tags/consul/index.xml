@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>consul on KrisX Blog</title>
+    <link>https://krizsx.github.io/tags/consul/</link>
+    <description>Recent content in consul on KrisX Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sat, 21 Apr 2018 11:16:25 +0800</lastBuildDate>
+    
+	<atom:link href="https://krizsx.github.io/tags/consul/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Golang中使用consul watch机制</title>
+      <link>https://krizsx.github.io/posts/2018/04/consul-watch/</link>
+      <pubDate>Sat, 21 Apr 2018 11:16:25 +0800</pubDate>
+      
+      <guid>https://krizsx.github.io/posts/2018/04/consul-watch/</guid>
+      <description>&lt;p&gt;最近使用了&lt;a href=&#34;https://www.consul.io/&#34;&gt;consul&lt;/a&gt;作为服务的注册中心,但是在使用时发现官方的 api 没有提供可以添加 watch 的接口,这样的话服务节点信息变化就不能及时获取,但是在查看 consul 源码中发现了官方其实还是给了方法,只不过没有暴露 api 而已,直接上代码&lt;/p&gt;</description>
+    </item>
+    
+  </channel>
+</rss>

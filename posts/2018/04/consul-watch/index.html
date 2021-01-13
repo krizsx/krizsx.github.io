@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Golang中使用consul watch机制 | KrisX Blog</title>
+
+    
+<link href="/favicon.ico" rel="shortcut icon" type="image/x-icon" />
+
+
+
+
+<meta name="author" content="KrizsX" />
+<meta name="description" content="最近使用了consul作为服务的注册中心,但是在使用时发现官方的 api 没有提供可以添加 watch 的接口,这样的话服务节点信息变化就不能及时获取,但是在查看 consul 源码中发现了官方其实还是给了方法,只不过没有暴露 api 而已,直接上代码
+" />
+
+
+
+<meta name="generator" content="Hugo 0.74.3" />
+
+<link rel="canonical" href="https://krizsx.github.io/posts/2018/04/consul-watch/" />
+
+
+<meta property="og:title" content="Golang中使用consul watch机制" />
+<meta property="og:description" content="最近使用了consul作为服务的注册中心,但是在使用时发现官方的 api 没有提供可以添加 watch 的接口,这样的话服务节点信息变化就不能及时获取,但是在查看 consul 源码中发现了官方其实还是给了方法,只不过没有暴露 api 而已,直接上代码" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://krizsx.github.io/posts/2018/04/consul-watch/" />
+<meta property="article:published_time" content="2018-04-21T11:16:25+08:00" />
+<meta property="article:modified_time" content="2018-04-21T11:16:25+08:00" />
+
+
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Golang中使用consul watch机制"/>
+<meta name="twitter:description" content="最近使用了consul作为服务的注册中心,但是在使用时发现官方的 api 没有提供可以添加 watch 的接口,这样的话服务节点信息变化就不能及时获取,但是在查看 consul 源码中发现了官方其实还是给了方法,只不过没有暴露 api 而已,直接上代码"/>
+
+
+<link rel="stylesheet" href="/css/semantic.min.css" />
+<link rel="stylesheet" href="/css/OverlayScrollbars.min.css" />
+<link rel="stylesheet" href="/css/site.css" />
+
+
+<style>
+  a {
+    color: seagreen !important;
+  }
+</style>
+
+
+
+
+    
+<link rel="stylesheet" href="/css/github-markdown.css" />
+
+  </head>
+
+  
+  <body style="background-image: url(/img/background.png);">
+  
+    <div class="flip-container">
+      <div class="flipper">
+        <section class="front">
+          
+<nav class="ui secondary menu dream-menu">
+
+  <div class="item">
+    <i class="large link bullseye icon dream-flip-toggle" title="Flip it!"></i>
+  </div>
+  <div class="item">
+    <i class="large link home icon" title="Home" onclick="window.location.href = 'https:\/\/krizsx.github.io'"></i>
+  </div>
+  <div class="item">
+    <i class="large link icon theme-switch" onclick="themeSwitch()"></i>
+  </div>
+</nav>
+
+          
+<div class="ui centered relaxed grid dream-grid">
+  <div class="sixteen wide mobile sixteen wide tablet twelve wide computer column markdown-body dream-single">
+
+    <section class="ui top attached segment" id="dream-save-post-as-img">
+      <header style="margin-top: 0 !important;">
+        <h1 class="ui large header">
+          Golang中使用consul watch机制
+          <div class="sub header">
+            @
+            
+              KrizsX
+            
+            · Saturday, Apr 21, 2018
+            · 6 minute read
+            · Update at Apr 21, 2018
+          </div>
+        </h1>
+      </header>
+
+      
+
+      <article style="margin-top: 2rem;"><p>最近使用了<a href="https://www.consul.io/">consul</a>作为服务的注册中心,但是在使用时发现官方的 api 没有提供可以添加 watch 的接口,这样的话服务节点信息变化就不能及时获取,但是在查看 consul 源码中发现了官方其实还是给了方法,只不过没有暴露 api 而已,直接上代码</p>
+<h1 id="consul-watch-相关源码解读">consul watch 相关源码解读</h1>
+<p>watch 包在<a href="https://github.com/hashicorp/consul/tree/master/watch">这里</a></p>
+<h2 id="相关的-struct">相关的 struct</h2>
+<h3 id="watchplan">watch.Plan</h3>
+<p>这个在<a href="https://github.com/hashicorp/consul/blob/master/watch/watch.go">watch.go</a>文件中</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">Plan</span> <span style="color:#66d9ef">struct</span> {
+	<span style="color:#a6e22e">Datacenter</span>  <span style="color:#66d9ef">string</span> <span style="color:#75715e">// consul配置
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">Token</span>       <span style="color:#66d9ef">string</span> <span style="color:#75715e">// consul配置
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">Type</span>        <span style="color:#66d9ef">string</span> <span style="color:#75715e">// 需要监听变化的类型,比如nodes,service
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">HandlerType</span> <span style="color:#66d9ef">string</span> <span style="color:#75715e">// handler的类型,可以是http的endpoint或者一个script,当然也可以是自己的func
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">Exempt</span>      <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">interface</span>{} <span style="color:#75715e">// 额外参数
+</span><span style="color:#75715e"></span>
+	<span style="color:#a6e22e">Watcher</span>   <span style="color:#a6e22e">WatcherFunc</span> <span style="color:#75715e">// 这个是需要监听的变化
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">Handler</span>   <span style="color:#a6e22e">HandlerFunc</span> <span style="color:#75715e">// 这个是在监听到变化之后的处理函数
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">LogOutput</span> <span style="color:#a6e22e">io</span>.<span style="color:#a6e22e">Writer</span> <span style="color:#75715e">// 日志的writer,默认是os.Stdout
+</span><span style="color:#75715e"></span>
+	<span style="color:#a6e22e">address</span>    <span style="color:#66d9ef">string</span> <span style="color:#75715e">// consul地址
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">client</span>     <span style="color:#f92672">*</span><span style="color:#a6e22e">consulapi</span>.<span style="color:#a6e22e">Client</span> <span style="color:#75715e">// consul client
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">lastIndex</span>  <span style="color:#66d9ef">uint64</span> <span style="color:#75715e">// blocking quires 的index
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">lastResult</span> <span style="color:#66d9ef">interface</span>{} <span style="color:#75715e">// blocking quires 上一次的结果
+</span><span style="color:#75715e"></span>
+	<span style="color:#a6e22e">stop</span>       <span style="color:#66d9ef">bool</span> <span style="color:#75715e">// 状态标志
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">stopCh</span>     <span style="color:#66d9ef">chan</span> <span style="color:#66d9ef">struct</span>{} <span style="color:#75715e">// channel,用来传递信号
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">stopLock</span>   <span style="color:#a6e22e">sync</span>.<span style="color:#a6e22e">Mutex</span>
+	<span style="color:#a6e22e">cancelFunc</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">CancelFunc</span>
+}
+</code></pre></div><p>其中 Watcher 是需要监听的变化,如果节点信息变化之后就会调用 Handler,所以我们需要自定义的就是这个 Handler</p>
+<h3 id="watcher-和-handler">Watcher 和 Handler</h3>
+<p>也是在<a href="https://github.com/hashicorp/consul/blob/master/watch/watch.go">watch.go</a>文件中,
+这两个 func 的定义,很简单清晰</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// WatcherFunc is used to watch for a diff
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">WatcherFunc</span> <span style="color:#66d9ef">func</span>(<span style="color:#f92672">*</span><span style="color:#a6e22e">Plan</span>) (<span style="color:#66d9ef">uint64</span>, <span style="color:#66d9ef">interface</span>{}, <span style="color:#66d9ef">error</span>)
+
+<span style="color:#75715e">// HandlerFunc is used to handle new data
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">HandlerFunc</span> <span style="color:#66d9ef">func</span>(<span style="color:#66d9ef">uint64</span>, <span style="color:#66d9ef">interface</span>{})
+
+</code></pre></div><hr>
+<h2 id="如何创建-plan-并启动以监听单个服务变化为例">如何创建 Plan 并启动(以监听单个服务变化为例)</h2>
+<h3 id="watchparse-创建-plan">watch.Parse 创建 Plan</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-golang" data-lang="golang">
+<span style="color:#75715e">// Parse takes a watch query and compiles it into a WatchPlan or an error
+</span><span style="color:#75715e">// 通过这个来创建Plan,参数是用map来传递的
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">Parse</span>(<span style="color:#a6e22e">params</span> <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">interface</span>{}) (<span style="color:#f92672">*</span><span style="color:#a6e22e">Plan</span>, <span style="color:#66d9ef">error</span>) {
+	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">ParseExempt</span>(<span style="color:#a6e22e">params</span>, <span style="color:#66d9ef">nil</span>)
+}
+
+<span style="color:#75715e">// ParseExempt takes a watch query and compiles it into a WatchPlan or an error
+</span><span style="color:#75715e">// Any exempt parameters are stored in the Exempt map
+</span><span style="color:#75715e">// 解析参数map并创建Plan
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">ParseExempt</span>(<span style="color:#a6e22e">params</span> <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">interface</span>{}, <span style="color:#a6e22e">exempt</span> []<span style="color:#66d9ef">string</span>) (<span style="color:#f92672">*</span><span style="color:#a6e22e">Plan</span>, <span style="color:#66d9ef">error</span>) {
+	<span style="color:#a6e22e">plan</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">Plan</span>{
+		<span style="color:#a6e22e">stopCh</span>: make(<span style="color:#66d9ef">chan</span> <span style="color:#66d9ef">struct</span>{}),
+		<span style="color:#a6e22e">Exempt</span>: make(<span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">interface</span>{}),
+	}
+
+	<span style="color:#75715e">// 所有的参数都是通过assert来转换成对应的类型的
+</span><span style="color:#75715e"></span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">assignValue</span>(<span style="color:#a6e22e">params</span>, <span style="color:#e6db74">&#34;datacenter&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">Datacenter</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+	}
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">assignValue</span>(<span style="color:#a6e22e">params</span>, <span style="color:#e6db74">&#34;token&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">Token</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+	}
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">assignValue</span>(<span style="color:#a6e22e">params</span>, <span style="color:#e6db74">&#34;type&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">Type</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+	}
+    <span style="color:#75715e">// Ensure there is a watch type
+</span><span style="color:#75715e"></span>    <span style="color:#75715e">// 要保证type这个参数的值是consul支持的
+</span><span style="color:#75715e"></span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">Type</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;&#34;</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;Watch type must be specified&#34;</span>)
+	}
+    <span style="color:#75715e">// Get the specific handler
+</span><span style="color:#75715e"></span>    <span style="color:#75715e">// 这个是handler的type,如果是要指定自定义的func,那么就不需要这个了
+</span><span style="color:#75715e"></span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">assignValue</span>(<span style="color:#a6e22e">params</span>, <span style="color:#e6db74">&#34;handler_type&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">HandlerType</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+	}
+	<span style="color:#66d9ef">switch</span> <span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">HandlerType</span> {
+        <span style="color:#66d9ef">case</span> <span style="color:#e6db74">&#34;http&#34;</span>:
+    	<span style="color:#75715e">// 此处省略...
+</span><span style="color:#75715e"></span>	<span style="color:#66d9ef">case</span> <span style="color:#e6db74">&#34;script&#34;</span>:
+		<span style="color:#75715e">// Let the caller check for configuration in exempt parameters
+</span><span style="color:#75715e"></span>	}
+
+    <span style="color:#75715e">// Look for a factory function
+</span><span style="color:#75715e"></span>    <span style="color:#75715e">// 从factory中根据type获取watcher
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">factory</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">watchFuncFactory</span>[<span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">Type</span>]
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">factory</span> <span style="color:#f92672">==</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;Unsupported watch type: %s&#34;</span>, <span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">Type</span>)
+	}
+    <span style="color:#75715e">// Get the watch func
+</span><span style="color:#75715e"></span>    <span style="color:#75715e">// 获取watcher
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">fn</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">factory</span>(<span style="color:#a6e22e">params</span>)
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+	}
+	<span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">Watcher</span> = <span style="color:#a6e22e">fn</span>
+
+    <span style="color:#75715e">// 此处省略 ...
+</span><span style="color:#75715e"></span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">plan</span>, <span style="color:#66d9ef">nil</span>
+}
+
+</code></pre></div><h3 id="parse-需要的参数-mapstringinterface-相关">Parse 需要的参数 map[string]interface 相关</h3>
+<h4 id="1-type">1. type</h4>
+<blockquote>
+<p>这个是创建 Plan 必要的参数,指的是 watcher 的类型,可以在<a href="https://github.com/hashicorp/consul/blob/master/watch/funcs.go">funcs.go</a>中看到</p>
+</blockquote>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// watchFactory is a function that can create a new WatchFunc
+</span><span style="color:#75715e">// from a parameter configuration
+</span><span style="color:#75715e">// 所有的type都在这里面,在Parse中就是通过factory获取watcher
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">type</span> <span style="color:#a6e22e">watchFactory</span> <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">params</span> <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">interface</span>{}) (<span style="color:#a6e22e">WatcherFunc</span>, <span style="color:#66d9ef">error</span>)
+
+<span style="color:#75715e">// watchFuncFactory maps each type to a factory function
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">watchFuncFactory</span> <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#a6e22e">watchFactory</span>
+
+<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">init</span>() {
+	<span style="color:#a6e22e">watchFuncFactory</span> = <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#a6e22e">watchFactory</span>{
+        <span style="color:#75715e">// 监听KV中的key
+</span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;key&#34;</span>:       <span style="color:#a6e22e">keyWatch</span>,
+        <span style="color:#75715e">// 监听KV中以某种prefix开头
+</span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;keyprefix&#34;</span>: <span style="color:#a6e22e">keyPrefixWatch</span>,
+        <span style="color:#75715e">// 监听所有服务
+</span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;services&#34;</span>:  <span style="color:#a6e22e">servicesWatch</span>,
+        <span style="color:#75715e">// 监听节点变化
+</span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;nodes&#34;</span>:     <span style="color:#a6e22e">nodesWatch</span>,
+         <span style="color:#75715e">// 监听单个服务的
+</span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;service&#34;</span>:   <span style="color:#a6e22e">serviceWatch</span>,
+        <span style="color:#75715e">// 监听健康检查状态
+</span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;checks&#34;</span>:    <span style="color:#a6e22e">checksWatch</span>,
+        <span style="color:#75715e">// 监听event
+</span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;event&#34;</span>:     <span style="color:#a6e22e">eventWatch</span>,
+    }
+}
+
+</code></pre></div><hr>
+<p>下面是 watcher 需要的参数,也是放在 params 中</p>
+<p>Parse 在从 factory 中获取到对应的 watcher 之后,会将参数传入</p>
+<p>其实和直接调用<a href="https://github.com/hashicorp/consul/blob/master/api/health.go">api</a>查询的 QueryOptions 是一样的</p>
+<h4 id="2-service">2. service</h4>
+<blockquote>
+<p>必要参数 ,需要监听的单个服务的名字,用 string 表示就可以</p>
+</blockquote>
+<h4 id="3-tag">3. tag</h4>
+<blockquote>
+<p>非必要参数,表示查询时服务需要拥有的 tag</p>
+</blockquote>
+<h4 id="4-passingonly">4. passingonly</h4>
+<blockquote>
+<p>非必要参数,表示服务是否必须是通过 check 的</p>
+</blockquote>
+<p>有了这些参数就可以创建出 WatcherFunc 了,下面的是 serviceWatch 创建的源码</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// serviceWatch is used to watch a specific service for changes
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">serviceWatch</span>(<span style="color:#a6e22e">params</span> <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">interface</span>{}) (<span style="color:#a6e22e">WatcherFunc</span>, <span style="color:#66d9ef">error</span>) {
+	<span style="color:#a6e22e">stale</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">false</span>
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">assignValueBool</span>(<span style="color:#a6e22e">params</span>, <span style="color:#e6db74">&#34;stale&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">stale</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+	}
+	<span style="color:#66d9ef">var</span> <span style="color:#a6e22e">service</span>, <span style="color:#a6e22e">tag</span> <span style="color:#66d9ef">string</span>
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">assignValue</span>(<span style="color:#a6e22e">params</span>, <span style="color:#e6db74">&#34;service&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">service</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+	}
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">service</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;&#34;</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;Must specify a single service to watch&#34;</span>)
+	}
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">assignValue</span>(<span style="color:#a6e22e">params</span>, <span style="color:#e6db74">&#34;tag&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">tag</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+	}
+	<span style="color:#a6e22e">passingOnly</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">false</span>
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">assignValueBool</span>(<span style="color:#a6e22e">params</span>, <span style="color:#e6db74">&#34;passingonly&#34;</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">passingOnly</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+	}
+
+	<span style="color:#a6e22e">fn</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">p</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Plan</span>) (<span style="color:#66d9ef">uint64</span>, <span style="color:#66d9ef">interface</span>{}, <span style="color:#66d9ef">error</span>) {
+		<span style="color:#a6e22e">health</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">Health</span>()
+		<span style="color:#a6e22e">opts</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">makeQueryOptionsWithContext</span>(<span style="color:#a6e22e">p</span>, <span style="color:#a6e22e">stale</span>)
+        <span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">cancelFunc</span>()
+        	<span style="color:#75715e">// 其实这里也是调用了api去查询的
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">nodes</span>, <span style="color:#a6e22e">meta</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">health</span>.<span style="color:#a6e22e">Service</span>(<span style="color:#a6e22e">service</span>, <span style="color:#a6e22e">tag</span>, <span style="color:#a6e22e">passingOnly</span>, <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">opts</span>)
+		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+			<span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>, <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">err</span>
+		}
+		<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">meta</span>.<span style="color:#a6e22e">LastIndex</span>, <span style="color:#a6e22e">nodes</span>, <span style="color:#a6e22e">err</span>
+	}
+	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">fn</span>, <span style="color:#66d9ef">nil</span>
+}
+</code></pre></div><hr>
+<h3 id="plan-设置自己的-handler">Plan 设置自己的 Handler</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// 自定义的handler
+</span><span style="color:#75715e">// 这里的这个result是根据watcher的type不同变化的
+</span><span style="color:#75715e">// 这个例子创建的是service的watcher,所以这个result是ServiceEntry的slice
+</span><span style="color:#75715e"></span><span style="color:#a6e22e">handler</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">index</span> <span style="color:#66d9ef">uint64</span>, <span style="color:#a6e22e">result</span> <span style="color:#66d9ef">interface</span>{}) {
+	<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Println</span>(<span style="color:#e6db74">&#34;service changed&#34;</span>)
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">entries</span>, <span style="color:#a6e22e">ok</span> = <span style="color:#a6e22e">result</span>.([]<span style="color:#f92672">*</span><span style="color:#a6e22e">consulApi</span>.<span style="color:#a6e22e">ServiceEntry</span>); <span style="color:#a6e22e">ok</span> {
+		<span style="color:#75715e">// your code
+</span><span style="color:#75715e"></span>	}
+}
+
+<span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">Handler</span> = <span style="color:#a6e22e">handler</span>
+</code></pre></div><hr>
+<h3 id="planrun-启动-plan">plan.Run() 启动 plan</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#75715e">// Run is used to run a watch plan
+</span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">p</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Plan</span>) <span style="color:#a6e22e">Run</span>(<span style="color:#a6e22e">address</span> <span style="color:#66d9ef">string</span>) <span style="color:#66d9ef">error</span> {
+	<span style="color:#75715e">// Setup the client
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">address</span> = <span style="color:#a6e22e">address</span>
+	<span style="color:#a6e22e">conf</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">consulapi</span>.<span style="color:#a6e22e">DefaultConfig</span>()
+	<span style="color:#a6e22e">conf</span>.<span style="color:#a6e22e">Address</span> = <span style="color:#a6e22e">address</span>
+	<span style="color:#a6e22e">conf</span>.<span style="color:#a6e22e">Datacenter</span> = <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">Datacenter</span>
+	<span style="color:#a6e22e">conf</span>.<span style="color:#a6e22e">Token</span> = <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">Token</span>
+	<span style="color:#75715e">// 这里是创建consul的client
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">client</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">consulapi</span>.<span style="color:#a6e22e">NewClient</span>(<span style="color:#a6e22e">conf</span>)
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;Failed to connect to agent: %v&#34;</span>, <span style="color:#a6e22e">err</span>)
+	}
+	<span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">client</span> = <span style="color:#a6e22e">client</span>
+	<span style="color:#75715e">// Create the logger
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">output</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">LogOutput</span>
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">output</span> <span style="color:#f92672">==</span> <span style="color:#66d9ef">nil</span> {
+		<span style="color:#a6e22e">output</span> = <span style="color:#a6e22e">os</span>.<span style="color:#a6e22e">Stderr</span>
+	}
+	<span style="color:#a6e22e">logger</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">log</span>.<span style="color:#a6e22e">New</span>(<span style="color:#a6e22e">output</span>, <span style="color:#e6db74">&#34;&#34;</span>, <span style="color:#a6e22e">log</span>.<span style="color:#a6e22e">LstdFlags</span>)
+
+	<span style="color:#75715e">// Loop until we are canceled
+</span><span style="color:#75715e"></span>	<span style="color:#a6e22e">failures</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">0</span>
+<span style="color:#a6e22e">OUTER</span>:
+	<span style="color:#66d9ef">for</span> !<span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">shouldStop</span>() {
+		<span style="color:#75715e">// Invoke the handler
+</span><span style="color:#75715e"></span>		<span style="color:#75715e">// 调用watcher来获取查询的结果
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">index</span>, <span style="color:#a6e22e">result</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">Watcher</span>(<span style="color:#a6e22e">p</span>)
+		<span style="color:#75715e">// Check if we should terminate since the function
+</span><span style="color:#75715e"></span>		<span style="color:#75715e">// could have blocked for a while
+</span><span style="color:#75715e"></span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">shouldStop</span>() {
+			<span style="color:#66d9ef">break</span>
+		}
+		<span style="color:#75715e">// Handle an error in the watch function
+</span><span style="color:#75715e"></span>		<span style="color:#75715e">// watcher的错误处理
+</span><span style="color:#75715e"></span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+			<span style="color:#75715e">// Perform an exponential backoff
+</span><span style="color:#75715e"></span>			<span style="color:#75715e">// 失败次数增加
+</span><span style="color:#75715e"></span>			<span style="color:#a6e22e">failures</span><span style="color:#f92672">++</span>
+			<span style="color:#75715e">// 将index归零
+</span><span style="color:#75715e"></span>			<span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">lastIndex</span> = <span style="color:#ae81ff">0</span>
+			<span style="color:#a6e22e">retry</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">retryInterval</span> <span style="color:#f92672">*</span> <span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Duration</span>(<span style="color:#a6e22e">failures</span><span style="color:#f92672">*</span><span style="color:#a6e22e">failures</span>)
+			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">retry</span> &gt; <span style="color:#a6e22e">maxBackoffTime</span> {
+				<span style="color:#a6e22e">retry</span> = <span style="color:#a6e22e">maxBackoffTime</span>
+			}
+			<span style="color:#a6e22e">logger</span>.<span style="color:#a6e22e">Printf</span>(<span style="color:#e6db74">&#34;consul.watch: Watch (type: %s) errored: %v, retry in %v&#34;</span>,
+				<span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">Type</span>, <span style="color:#a6e22e">err</span>, <span style="color:#a6e22e">retry</span>)
+			<span style="color:#66d9ef">select</span> {
+			<span style="color:#75715e">// 执行重试
+</span><span style="color:#75715e"></span>			<span style="color:#66d9ef">case</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">After</span>(<span style="color:#a6e22e">retry</span>):
+				<span style="color:#66d9ef">continue</span> <span style="color:#a6e22e">OUTER</span>
+			<span style="color:#66d9ef">case</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">stopCh</span>:
+				<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+			}
+		}
+		<span style="color:#75715e">// Clear the failures
+</span><span style="color:#75715e"></span>		<span style="color:#75715e">// 成功之后将失败记录次数归零
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">failures</span> = <span style="color:#ae81ff">0</span>
+		<span style="color:#75715e">// If the index is unchanged do nothing
+</span><span style="color:#75715e"></span>		<span style="color:#75715e">// 判断blocking quries 的index
+</span><span style="color:#75715e"></span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">index</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">lastIndex</span> {
+			<span style="color:#66d9ef">continue</span>
+		}
+		<span style="color:#75715e">// Update the index, look for change
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">oldIndex</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">lastIndex</span>
+		<span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">lastIndex</span> = <span style="color:#a6e22e">index</span>
+		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">oldIndex</span> <span style="color:#f92672">!=</span> <span style="color:#ae81ff">0</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">reflect</span>.<span style="color:#a6e22e">DeepEqual</span>(<span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">lastResult</span>, <span style="color:#a6e22e">result</span>) {
+			<span style="color:#66d9ef">continue</span>
+		}
+		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">lastIndex</span> &lt; <span style="color:#a6e22e">oldIndex</span> {
+			<span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">lastIndex</span> = <span style="color:#ae81ff">0</span>
+		}
+		<span style="color:#75715e">// Handle the updated result
+</span><span style="color:#75715e"></span>		<span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">lastResult</span> = <span style="color:#a6e22e">result</span>
+		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">Handler</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+			<span style="color:#75715e">// 这里会调用自定义的handler
+</span><span style="color:#75715e"></span>			<span style="color:#a6e22e">p</span>.<span style="color:#a6e22e">Handler</span>(<span style="color:#a6e22e">index</span>, <span style="color:#a6e22e">result</span>)
+		}
+	}
+	<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+}
+</code></pre></div><hr>
+<p>通过上面几步就可以创建 plan 来监听服务节点变化啦</p>
+<h1 id="完整-demo">完整 demo</h1>
+<p>这里是<a href="https://github.com/krizss/demo/blob/master/consul_watch/main.go">地址</a></p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go"><span style="color:#f92672">package</span> <span style="color:#a6e22e">main</span>
+
+<span style="color:#f92672">import</span> (
+	<span style="color:#e6db74">&#34;fmt&#34;</span>
+	<span style="color:#e6db74">&#34;net/http&#34;</span>
+
+	<span style="color:#a6e22e">consulApi</span> <span style="color:#e6db74">&#34;github.com/hashicorp/consul/api&#34;</span>
+	<span style="color:#e6db74">&#34;github.com/hashicorp/consul/watch&#34;</span>
+)
+
+<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">main</span>() {
+	<span style="color:#66d9ef">var</span> (
+		<span style="color:#a6e22e">err</span>    <span style="color:#66d9ef">error</span>
+		<span style="color:#a6e22e">params</span> <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">interface</span>{}
+		<span style="color:#a6e22e">plan</span>   <span style="color:#f92672">*</span><span style="color:#a6e22e">watch</span>.<span style="color:#a6e22e">Plan</span>
+		<span style="color:#a6e22e">ch</span>     <span style="color:#66d9ef">chan</span> <span style="color:#66d9ef">int</span>
+	)
+	<span style="color:#a6e22e">ch</span> = make(<span style="color:#66d9ef">chan</span> <span style="color:#66d9ef">int</span>, <span style="color:#ae81ff">1</span>)
+
+	<span style="color:#a6e22e">params</span> = make(<span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">interface</span>{})
+	<span style="color:#a6e22e">params</span>[<span style="color:#e6db74">&#34;type&#34;</span>] = <span style="color:#e6db74">&#34;service&#34;</span>
+	<span style="color:#a6e22e">params</span>[<span style="color:#e6db74">&#34;service&#34;</span>] = <span style="color:#e6db74">&#34;test&#34;</span>
+	<span style="color:#a6e22e">params</span>[<span style="color:#e6db74">&#34;passingonly&#34;</span>] = <span style="color:#66d9ef">false</span>
+	<span style="color:#a6e22e">params</span>[<span style="color:#e6db74">&#34;tag&#34;</span>] = <span style="color:#e6db74">&#34;SERVER&#34;</span>
+	<span style="color:#a6e22e">plan</span>, <span style="color:#a6e22e">err</span> = <span style="color:#a6e22e">watch</span>.<span style="color:#a6e22e">Parse</span>(<span style="color:#a6e22e">params</span>)
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		panic(<span style="color:#a6e22e">err</span>)
+	}
+	<span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">Handler</span> = <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">index</span> <span style="color:#66d9ef">uint64</span>, <span style="color:#a6e22e">result</span> <span style="color:#66d9ef">interface</span>{}) {
+		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">entries</span>, <span style="color:#a6e22e">ok</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">result</span>.([]<span style="color:#f92672">*</span><span style="color:#a6e22e">consulApi</span>.<span style="color:#a6e22e">ServiceEntry</span>); <span style="color:#a6e22e">ok</span> {
+			<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Printf</span>(<span style="color:#e6db74">&#34;serviceEntries:%v&#34;</span>, <span style="color:#a6e22e">entries</span>)
+			<span style="color:#75715e">// your code
+</span><span style="color:#75715e"></span>			<span style="color:#a6e22e">ch</span> <span style="color:#f92672">&lt;-</span> <span style="color:#ae81ff">1</span>
+		}
+	}
+	<span style="color:#66d9ef">go</span> <span style="color:#66d9ef">func</span>() {
+		<span style="color:#75715e">// your consul agent addr
+</span><span style="color:#75715e"></span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> = <span style="color:#a6e22e">plan</span>.<span style="color:#a6e22e">Run</span>(<span style="color:#e6db74">&#34;127.0.0.1:7888&#34;</span>); <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+			panic(<span style="color:#a6e22e">err</span>)
+		}
+	}()
+	<span style="color:#66d9ef">go</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">ListenAndServe</span>(<span style="color:#e6db74">&#34;:8080&#34;</span>, <span style="color:#66d9ef">nil</span>)
+	<span style="color:#66d9ef">go</span> <span style="color:#a6e22e">register</span>()
+	<span style="color:#66d9ef">for</span> {
+		<span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">ch</span>
+		<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Printf</span>(<span style="color:#e6db74">&#34;get change&#34;</span>)
+	}
+}
+
+<span style="color:#66d9ef">func</span> <span style="color:#a6e22e">register</span>() {
+	<span style="color:#66d9ef">var</span> (
+		<span style="color:#a6e22e">err</span>    <span style="color:#66d9ef">error</span>
+		<span style="color:#a6e22e">client</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">consulApi</span>.<span style="color:#a6e22e">Client</span>
+	)
+	<span style="color:#a6e22e">client</span>, <span style="color:#a6e22e">err</span> = <span style="color:#a6e22e">consulApi</span>.<span style="color:#a6e22e">NewClient</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">consulApi</span>.<span style="color:#a6e22e">Config</span>{<span style="color:#a6e22e">Address</span>: <span style="color:#e6db74">&#34;127.0.0.1:7888&#34;</span>})
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		panic(<span style="color:#a6e22e">err</span>)
+	}
+	<span style="color:#a6e22e">err</span> = <span style="color:#a6e22e">client</span>.<span style="color:#a6e22e">Agent</span>().<span style="color:#a6e22e">ServiceRegister</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">consulApi</span>.<span style="color:#a6e22e">AgentServiceRegistration</span>{
+		<span style="color:#a6e22e">ID</span>:   <span style="color:#e6db74">&#34;&#34;</span>,
+		<span style="color:#a6e22e">Name</span>: <span style="color:#e6db74">&#34;test&#34;</span>,
+		<span style="color:#a6e22e">Tags</span>: []<span style="color:#66d9ef">string</span>{<span style="color:#e6db74">&#34;SERVER&#34;</span>},
+		<span style="color:#a6e22e">Port</span>: <span style="color:#ae81ff">8080</span>,
+		<span style="color:#a6e22e">Check</span>: <span style="color:#f92672">&amp;</span><span style="color:#a6e22e">consulApi</span>.<span style="color:#a6e22e">AgentServiceCheck</span>{
+			<span style="color:#a6e22e">HTTP</span>: <span style="color:#e6db74">&#34;&#34;</span>,
+		},
+	})
+	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+		panic(<span style="color:#a6e22e">err</span>)
+	}
+}
+
+</code></pre></div></article>
+    </section>
+
+    <footer class="ui attached segment dream-tags">
+      
+        
+          <a class="ui label" href="/tags/consul" title="consul">consul</a>
+        
+          <a class="ui label" href="/tags/go" title="go">go</a>
+        
+      
+      <div
+        class="ui label"
+        style="float: right; cursor: pointer;"
+        onclick="savePostAsImg()">
+        <i class="save icon"></i>Save as image
+      </div>
+    </footer>
+
+    
+
+    
+    
+    
+
+  </div>
+  <div class="sixteen wide mobile sixteen wide tablet four wide computer column">
+    <article class="dream-header">
+  <section class="ui top attached center aligned segment">
+    <div class="ui small circular image">
+      
+        <img src="/img/avator.jpeg">
+      
+    </div>
+
+    
+    <div class="ui medium header">KrizsX&#39;s blog<div class="sub header" style="margin-top: 0.5rem;">加一层可以解决所有问题</div>
+    </div>
+    
+
+    <div class="ui horizontal list">
+      
+      <a class="item" href="/posts">
+        <i class="archive icon" title="Archives"></i>
+      </a>
+      
+      <a class="item" href="/tags">
+        <i class="tags icon" title="All Tags"></i>
+      </a>
+      <a class="item" href="/categories">
+        <i class="th list icon" title="All Categories"></i>
+      </a>
+    </div>
+  </section>
+
+  
+  <section class="ui attached center aligned segment dream-tags">
+    
+      <a class="ui label" href="/tags/consul" title="consul">consul</a>
+    
+      <a class="ui label" href="/tags/go" title="go">go</a>
+    
+      <a class="ui label" href="/tags/music" title="music">music</a>
+    
+      <a class="ui label" href="/tags/rpc" title="rpc">rpc</a>
+    
+      <a class="ui label" href="/tags/service-mesh" title="service-mesh">service-mesh</a>
+    
+      <a class="ui label" href="/tags/test" title="test">test</a>
+    
+      <a class="ui label" href="/tags/web" title="web">web</a>
+    
+  </section>
+  
+
+  
+  <section class="ui attached segment dream-categories">
+    <div class="ui accordion">
+      
+      
+      
+      
+      
+
+      
+        
+
+        
+          <div class="title">
+            <i class="dropdown icon"></i>
+            <a href="/categories/blog" class="item">blog</a>
+          </div>
+          <div class="content">
+            <div class="ui list">
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2019/02/service-mesh/" class="item">Service Mesh</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/09/golang-test-2/" class="item">Go语言测试(二)</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/09/golang-test-1/" class="item">Go语言测试(一)</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/07/gin-graceful/" class="item">gin的平滑关闭</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/07/song/" class="item">hugo使用shortcode引入音乐</a>
+                </div>
+              </div>
+            
+              <div class="item">
+                <div class="content">
+                  <a href="/posts/2018/04/consul-watch/" class="item">Golang中使用consul watch机制</a>
+                </div>
+              </div>
+            
+            </div>
+          </div>
+        
+      
+
+      
+    </div>
+  </section>
+  
+
+  <section class="ui attached segment header-socials">
+    <nav class="ui secondary menu dream-menu dream-socials">
+  
+  
+    <div class="item">
+      <a href="mailto:cb.kris.bj@gmail.com">
+        <i class=" mail icon" title="Email"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    <div class="item">
+      <a href="https://github.com/krizsx" target="_blank">
+        <i class=" github icon" title="GitHub"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+</nav>
+
+  </section>
+
+  <section class="ui bottom attached center aligned segment">
+    
+      <p>© 2020 - 2021 KrisX Blog</p>
+    
+
+    <p>Powered by <a href="https://gohugo.io/" target="_blank">Hugo</a> with theme <a href="https://github.com/g1eny0ung/hugo-theme-dream" target="_blank">Dream</a>.</p>
+
+    
+  </section>
+</article>
+
+  </div>
+</div>
+
+        </section>
+        <section class="back">
+          
+<nav class="ui secondary menu dream-menu">
+
+  <div class="item">
+    <i class="large link bullseye icon dream-flip-toggle" title="Flip it!"></i>
+  </div>
+  <div class="item">
+    <i class="large link home icon" title="Home" onclick="window.location.href = 'https:\/\/krizsx.github.io'"></i>
+  </div>
+  <div class="item">
+    <i class="large link icon theme-switch" onclick="themeSwitch()"></i>
+  </div>
+</nav>
+
+          <div class="ui centered relaxed grid dream-grid dream-back">
+  
+  
+  
+    <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+      <article>
+        <div class="ui top attached segment">
+          <h3 class="ui header">个人简介</h3>
+        </div>
+        <div class="ui attached segment markdown-body">
+          <p>Dream Boy</p>
+
+        </div>
+      </article>
+    </section>
+  
+
+  <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+    <article>
+      <div class="ui top attached segment">
+        <h3 class="ui header">Social Links</h3>
+      </div>
+      <div class="ui attached segment">
+        <nav class="ui secondary menu dream-menu dream-socials">
+  
+  
+    <div class="item">
+      <a href="mailto:cb.kris.bj@gmail.com">
+        <i class="large mail icon" title="Email"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    <div class="item">
+      <a href="https://github.com/krizsx" target="_blank">
+        <i class="large github icon" title="GitHub"></i>
+      </a>
+    </div>
+  
+
+  
+
+  
+</nav>
+
+      </div>
+    </article>
+  </section>
+
+  <section class="sixteen wide mobile eight wide tablet four wide computer column dream-column">
+    
+  </section>
+
+  
+  
+</div>
+
+        </section>
+      </div>
+    </div>
+
+    <script src="/js/jquery.min.js"></script>
+<script src="/js/semantic.min.js"></script>
+<script src="/js/jquery.overlayScrollbars.min.js"></script>
+<script src="/js/header.js"></script>
+<script src="/js/main.js"></script>
+<script src="/js/theme.js"></script>
+
+    
+<script src="/js/html2canvas.min.js"></script>
+<script src="/js/post.js"></script>
+
+
+    
+  </body>
+</html>
